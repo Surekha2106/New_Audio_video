@@ -96,6 +96,6 @@ Follow these instructions to get a copy of the project up and running on your lo
 
 <div align="center">
 
-*Designed & developed by [Your Name]*
+*Designed & developed by [Surekha]*
 
 </div>
