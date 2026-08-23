@@ -1,0 +1,112 @@
+body {
+    background: #0d0d0d;
+    color: #ffffff;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+/* Hero Section */
+.hero {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.hero-text h1 {
+    font-size: 42px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.hero-text p {
+    color: #aaaaaa;
+    font-size: 16px;
+    margin-bottom: 50px;
+}
+
+/* Upload Card */
+.upload-card {
+    background: #1a1a1a;
+    max-width: 800px;
+    margin: auto;
+    padding: 50px;
+    border-radius: 20px;
+    box-shadow: 0 0 40px rgba(120, 120, 120, 0.15);
+    transition: 0.3s ease;
+}
+
+.upload-card:hover {
+    box-shadow: 0 0 60px rgba(150, 150, 150, 0.25);
+}
+
+/* Upload Area */
+.upload-area {
+    border: 2px dashed #555;
+    padding: 40px;
+    text-align: center;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: 0.3s ease;
+}
+
+.upload-area.dragging {
+    border-color: #4CAF50;
+    background: rgba(76, 175, 80, 0.1);
+    transform: scale(1.02);
+}
+
+.upload-icon {
+    font-size: 40px;
+    margin-bottom: 10px;
+}
+
+/* Controls */
+.controls {
+    margin-top: 40px;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.field {
+    flex: 1;
+    text-align: left;
+}
+
+.field label {
+    display: block;
+    margin-bottom: 8px;
+    color: #bbb;
+}
+
+select {
+    width: 100%;
+    padding: 12px;
+    background: #111;
+    border: 1px solid #444;
+    color: white;
+    border-radius: 8px;
+    outline: none;
+}
+
+select:focus {
+    border-color: #888;
+    box-shadow: 0 0 10px rgba(180, 180, 180, 0.4);
+}
+
+/* Button */
+.translate-btn {
+    margin-top: 40px;
+    width: 100%;
+    padding: 15px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(90deg, #333, #555);
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    transition: 0.3s ease;
+}
+
+.translate-btn:hover {
+    background: linear-gradient(90deg, #555, #777);
+    box-shadow: 0 0 20px rgba(200, 200, 200, 0.4);
+}

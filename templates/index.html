@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Smart AI | Cinematic AI Video Dubbing{% endblock %}
+
+{% block content %}
+<div class="hero-section" style="text-align: center; padding: 8rem 0; animation: fadeInDown 1s ease-out;">
+    <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(99, 102, 241, 0.1); padding: 0.5rem 1.25rem; border-radius: 100px; border: 1px solid var(--primary-glow); color: var(--primary); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2rem;">
+        <span style="display: inline-block; width: 6px; height: 6px; background: var(--primary); border-radius: 50%; box-shadow: 0 0 10px var(--primary);"></span>
+        Next-Generation AI Dubbing
+    </div>
+    
+    <h1 style="font-size: 4.5rem; line-height: 1.05; margin-bottom: 2rem; color: #fff;">
+        Globalize Your Content <br>
+        <span class="gradient-text">With AI Magic.</span>
+    </h1>
+    
+    <p style="color: var(--text-muted); font-size: 1.25rem; max-width: 650px; margin: 0 auto 3.5rem; line-height: 1.8;">
+        Break language barriers instantly. Our neural-powered platform transcribes, translates, and dubs your videos while preserving the original emotion and tone.
+    </p>
+    
+    <div style="display: flex; gap: 1.5rem; justify-content: center;">
+        <a href="{{ url_for('signup') }}" class="btn-primary" style="padding: 1.25rem 3rem; font-size: 1.1rem; border-radius: 1.25rem;">
+            Get Started for Free <span>→</span>
+        </a>
+        <a href="#features" class="btn-secondary" style="padding: 1.25rem 3rem; font-size: 1.1rem; border-radius: 1.25rem;">
+            See How it Works
+        </a>
+    </div>
+</div>
+
+<div id="features" style="padding: 6rem 0;">
+    <div style="text-align: center; margin-bottom: 5rem;">
+        <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Engineered for <span class="gradient-text">Precision</span></h2>
+        <p style="color: var(--text-muted);">Three core pillars that power our translation engine.</p>
+    </div>
+
+    <div class="features-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2.5rem;">
+        <div class="glass-card feature-item" style="padding: 3rem; transition: var(--transition-smooth); border-radius: 2rem;">
+            <div style="width: 60px; height: 60px; background: rgba(99, 102, 241, 0.1); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 2rem; color: var(--primary); border: 1px solid var(--primary-glow);">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            </div>
+            <h3 style="font-size: 1.5rem; margin-bottom: 1rem; color: #fff;">Instant Cloud-Rendering</h3>
+            <p style="color: var(--text-muted); line-height: 1.8;">Our GPU-accelerated infrastructure processes your videos in real-time, delivering studio-quality results in minutes.</p>
+        </div>
+        
+        <div class="glass-card feature-item" style="padding: 3rem; transition: var(--transition-smooth); border-radius: 2rem;">
+            <div style="width: 60px; height: 60px; background: rgba(168, 85, 247, 0.1); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 2rem; color: var(--secondary); border: 1px solid var(--secondary-glow);">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+            </div>
+            <h3 style="font-size: 1.5rem; margin-bottom: 1rem; color: #fff;">Neural Voice Cloning</h3>
+            <p style="color: var(--text-muted); line-height: 1.8;">We don't just translate text. We clone the original voice's characteristics, ensuring a natural and immersive experience.</p>
+        </div>
+        
+        <div class="glass-card feature-item" style="padding: 3rem; transition: var(--transition-smooth); border-radius: 2rem;">
+            <div style="width: 60px; height: 60px; background: rgba(16, 185, 129, 0.1); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 2rem; color: var(--accent); border: 1px solid rgba(16, 185, 129, 0.2);">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+            </div>
+            <h3 style="font-size: 1.5rem; margin-bottom: 1rem; color: #fff;">100+ Dialects Supported</h3>
+            <p style="color: var(--text-muted); line-height: 1.8;">From Hindi and Tamil to French and Japanese, reach over 4 billion people in their native language effortlessly.</p>
+        </div>
+    </div>
+</div>
+
+<style>
+    @keyframes fadeInDown {
+        from { opacity: 0; transform: translateY(-30px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .feature-item:hover {
+        transform: translateY(-15px) scale(1.02);
+        background: rgba(255, 255, 255, 0.05);
+        border-color: var(--primary);
+        box-shadow: 0 40px 80px -20px rgba(0,0,0,0.6);
+    }
+</style>
+{% endblock %}

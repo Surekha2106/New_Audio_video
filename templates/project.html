@@ -1,0 +1,36 @@
+<div class="card animate__animated animate__fadeInUp">
+
+  <h3>Upload Video</h3>
+
+  <form method="POST" enctype="multipart/form-data">
+
+    <label>Choose Video</label>
+    <input type="file" name="video" required>
+
+    <br><br>
+
+    <label>Target Language</label>
+    <select name="target">
+      <option value="en">English</option>
+      <option value="hi">Hindi</option>
+      <option value="ta">Tamil</option>
+      <option value="te">Telugu</option>
+      <option value="fr">French</option>
+    </select>
+
+    <br><br>
+
+    <label>Voice Type</label>
+    <select name="voice">
+      <option value="auto">Auto</option>
+      <option value="male">Male</option>
+      <option value="female">Female</option>
+    </select>
+
+    <br><br>
+
+    <button class="btn">Start Translation</button>
+
+  </form>
+
+</div>

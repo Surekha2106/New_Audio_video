@@ -1,0 +1,85 @@
+/* =======================
+   history.css
+   ======================= */
+.history-container {
+    margin: 20px;
+}
+
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.history-table th,
+.history-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.history-table th {
+    border-bottom: 2px solid #00e5ff;
+    color: #00e5ff;
+}
+
+.history-table td {
+    color: #fff;
+}
+.history-container {
+    max-width: 1200px;
+    margin: 80px auto;
+    padding: 40px;
+
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+
+    border: 1px solid rgba(255, 255, 255, 0.1);
+
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* TABLE */
+
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.history-table th {
+    text-align: left;
+    padding: 16px;
+    color: #00e5ff;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.history-table td {
+    padding: 16px;
+    color: #ddd;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    word-break: break-all;
+}
+
+.history-table tr:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* COLUMN WIDTHS */
+
+.col-input {
+    width: 30%;
+}
+
+.col-output {
+    width: 40%;
+}
+
+.col-lang {
+    width: 10%;
+}
+
+.col-date {
+    width: 20%;
+}

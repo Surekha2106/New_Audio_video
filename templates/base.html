@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Smart AI | Video Translator & Dubbing{% endblock %}</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='base.css') }}?v=3">
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+    <script>
+        // Check local storage for theme early to avoid flash
+        if (localStorage.getItem('theme') === 'light') {
+            document.body.classList.add('light-theme');
+        }
+    </script>
+    <!-- WebGL Aurora Background -->
+    <div id="aurora-canvas-container" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -2; pointer-events: none; opacity: 0.8; background: var(--bg-darker);"></div>
+
+    <!-- Fluid WebGL Cursor -->
+    <canvas id="fluid-canvas" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none;"></canvas>
+
+    <!-- Flash Messages Container -->
+    <div class="flash-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash-message flash-{{ category }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+    </div>
+
+    {% if session.get('user') %}
+    <div class="app-layout">
+        <aside class="sidebar">
+            <a href="{{ url_for('index') }}" class="logo" style="text-decoration:none;">
+               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Smart AI
+            </a>
+            <nav class="sidebar-nav">
+                <a href="{{ url_for('project') }}" class="{% if request.endpoint == 'project' %}active{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+                    Video Studio
+                </a>
+                <a href="{{ url_for('audio_project') }}" class="{% if request.endpoint == 'audio_project' %}active{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+                    Audio Studio
+                </a>
+                <a href="{{ url_for('history_page') }}" class="{% if request.endpoint == 'history_page' %}active{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    History
+                </a>
+                <a href="{{ url_for('downloads') }}" class="{% if request.endpoint == 'downloads' %}active{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    All Files
+                </a>
+                
+                <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 0.5rem 0;">
+                
+                <a href="{{ url_for('profile') }}" class="{% if request.endpoint == 'profile' %}active{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    Profile
+                </a>
+                <a href="{{ url_for('settings') }}" class="{% if request.endpoint == 'settings' %}active{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    Settings
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <button id="themeToggleBtn" class="btn-secondary" style="width: 100%; justify-content: center; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; border-radius: 0.75rem;">
+                    <svg class="sun-icon" style="display: none;" viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                    <svg class="moon-icon" viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                    <span>Toggle Theme</span>
+                </button>
+                <a href="{{ url_for('logout') }}" class="btn-primary" style="border-radius: 0.75rem;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    Logout
+                </a>
+            </div>
+        </aside>
+        <main class="main-content">
+    {% else %}
+    <header class="navbar">
+        <a href="{{ url_for('index') }}" class="logo" style="text-decoration:none;">
+           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Smart AI
+        </a>
+
+        <nav class="nav-links">
+            <a href="{{ url_for('index') }}">Home</a>
+            <a href="{{ url_for('login') }}">Login</a>
+            <a href="{{ url_for('signup') }}" class="btn-primary">Get Started</a>
+        </nav>
+    </header>
+
+    <main class="main-container">
+    {% endif %}
+
+        {% block content %}{% endblock %}
+
+    {% if session.get('user') %}
+        </main>
+    </div>
+    {% else %}
+    </main>
+    {% endif %}
+
+    {% block extra_js %}{% endblock %}
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const themeBtn = document.getElementById('themeToggleBtn');
+            if (themeBtn) {
+                const updateIcons = () => {
+                    const isLight = document.body.classList.contains('light-theme');
+                    themeBtn.querySelector('.sun-icon').style.display = isLight ? 'block' : 'none';
+                    themeBtn.querySelector('.moon-icon').style.display = isLight ? 'none' : 'block';
+                };
+                updateIcons();
+
+                themeBtn.addEventListener('click', () => {
+                    document.body.classList.toggle('light-theme');
+                    const isLight = document.body.classList.contains('light-theme');
+                    localStorage.setItem('theme', isLight ? 'light' : 'dark');
+                    updateIcons();
+                });
+            }
+        });
+    </script>
+
+    <!-- WebGL Aurora Background Script (Raw WebGL2) -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const ctn = document.getElementById('aurora-canvas-container');
+            if (!ctn) return;
+            const canvas = document.createElement('canvas');
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+            ctn.appendChild(canvas);
+            
+            const gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: true });
+            if (!gl) return;
+
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
+            function compileShader(type, source) {
+                const shader = gl.createShader(type);
+                gl.shaderSource(shader, source);
+                gl.compileShader(shader);
+                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                    console.error(gl.getShaderInfoLog(shader));
+                    gl.deleteShader(shader);
+                    return null;
+                }
+                return shader;
+            }
+
+            const VERT = `#version 300 es
+            in vec2 position;
+            void main() {
+              gl_Position = vec4(position, 0.0, 1.0);
+            }`;
+
+            const FRAG = `#version 300 es
+            precision highp float;
+            uniform float uTime;
+            uniform float uAmplitude;
+            uniform vec3 uColorStops[3];
+            uniform vec2 uResolution;
+            uniform float uBlend;
+            out vec4 fragColor;
+            vec3 permute(vec3 x) { return mod(((x * 34.0) + 1.0) * x, 289.0); }
+            float snoise(vec2 v){
+              const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+              vec2 i  = floor(v + dot(v, C.yy));
+              vec2 x0 = v - i + dot(i, C.xx);
+              vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+              vec4 x12 = x0.xyxy + C.xxzz;
+              x12.xy -= i1;
+              i = mod(i, 289.0);
+              vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
+              vec3 m = max(0.5 - vec3(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), 0.0);
+              m = m * m; m = m * m;
+              vec3 x = 2.0 * fract(p * C.www) - 1.0;
+              vec3 h = abs(x) - 0.5;
+              vec3 ox = floor(x + 0.5);
+              vec3 a0 = x - ox;
+              m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
+              vec3 g; g.x  = a0.x  * x0.x  + h.x  * x0.y; g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+              return 130.0 * dot(m, g);
+            }
+            struct ColorStop { vec3 color; float position; };
+            void main() {
+              vec2 uv = gl_FragCoord.xy / uResolution;
+              ColorStop colors[3];
+              colors[0] = ColorStop(uColorStops[0], 0.0);
+              colors[1] = ColorStop(uColorStops[1], 0.5);
+              colors[2] = ColorStop(uColorStops[2], 1.0);
+              vec3 rampColor;
+              float factor = uv.x;
+              int index = 0;
+              for (int i = 0; i < 2; i++) {
+                 bool isInBetween = colors[i].position <= factor;
+                 index = int(mix(float(index), float(i), float(isInBetween)));
+              }
+              ColorStop currentColor = colors[index];
+              ColorStop nextColor = colors[index + 1];
+              float range = nextColor.position - currentColor.position;
+              float lerpFactor = (factor - currentColor.position) / range;
+              rampColor = mix(currentColor.color, nextColor.color, lerpFactor);
+              
+              float height = snoise(vec2(uv.x * 2.0 + uTime * 0.1, uTime * 0.25)) * 0.5 * uAmplitude;
+              height = exp(height);
+              height = (uv.y * 2.0 - height + 0.2);
+              float intensity = 0.6 * height;
+              float midPoint = 0.20;
+              float auroraAlpha = smoothstep(midPoint - uBlend * 0.5, midPoint + uBlend * 0.5, intensity);
+              vec3 auroraColor = intensity * rampColor;
+              fragColor = vec4(auroraColor * auroraAlpha, auroraAlpha);
+            }`;
+
+            const vertexShader = compileShader(gl.VERTEX_SHADER, VERT);
+            const fragmentShader = compileShader(gl.FRAGMENT_SHADER, FRAG);
+            const program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+            gl.useProgram(program);
+
+            const positionLocation = gl.getAttribLocation(program, "position");
+            const buffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(positionLocation);
+            gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+            const uTime = gl.getUniformLocation(program, "uTime");
+            const uAmplitude = gl.getUniformLocation(program, "uAmplitude");
+            const uColorStops = gl.getUniformLocation(program, "uColorStops");
+            const uResolution = gl.getUniformLocation(program, "uResolution");
+            const uBlend = gl.getUniformLocation(program, "uBlend");
+
+            // Purple/Pink theme
+            function hexToRgb(hex) {
+                const bigint = parseInt(hex.slice(1), 16);
+                return [(bigint >> 16 & 255)/255, (bigint >> 8 & 255)/255, (bigint & 255)/255];
+            }
+            const colors = [...hexToRgb('#1a1025'), ...hexToRgb('#ec4899'), ...hexToRgb('#a855f7')];
+            gl.uniform3fv(uColorStops, new Float32Array(colors));
+            gl.uniform1f(uAmplitude, 1.0);
+            gl.uniform1f(uBlend, 0.5);
+
+            function resize() {
+                const width = ctn.offsetWidth;
+                const height = ctn.offsetHeight;
+                canvas.width = width;
+                canvas.height = height;
+                gl.viewport(0, 0, width, height);
+                gl.uniform2f(uResolution, width, height);
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            let startTime = performance.now();
+            function update(t) {
+                requestAnimationFrame(update);
+                gl.uniform1f(uTime, (t - startTime) * 0.0001);
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+            }
+            requestAnimationFrame(update);
+        });
+    </script>
+
+    <!-- WebGL Fluid Cursor Script (Local Native Implementation) -->
+    <script src="{{ url_for('static', filename='splashCursor.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.initSplashCursor) {
+                window.initSplashCursor('fluid-canvas', {
+                    SIM_RESOLUTION: 128,
+                    DYE_RESOLUTION: 1440,
+                    CAPTURE_RESOLUTION: 512,
+                    DENSITY_DISSIPATION: 3.5,
+                    VELOCITY_DISSIPATION: 2,
+                    PRESSURE: 0.1,
+                    PRESSURE_ITERATIONS: 20,
+                    CURL: 3,
+                    SPLAT_RADIUS: 0.2,
+                    SPLAT_FORCE: 6000,
+                    SHADING: true,
+                    COLOR_UPDATE_SPEED: 10,
+                    BACK_COLOR: { r: 0.5, g: 0, b: 0 },
+                    TRANSPARENT: true,
+                    RAINBOW_MODE: false,
+                    COLOR: '#a855f7'
+                });
+            }
+        });
+    </script>
+</body>
+
+</html>

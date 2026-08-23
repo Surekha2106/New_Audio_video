@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Smart AI | Settings{% endblock %}
+
+{% block content %}
+<div class="glass-card animate-fade-in-up" style="max-width: 800px; margin: 0 auto; padding: 3rem;">
+    <h1 style="margin-bottom: 2rem; font-size: 2.5rem;">Settings</h1>
+    
+    <div style="display: flex; flex-direction: column; gap: 2.5rem;">
+        <!-- Appearance -->
+        <div>
+            <h3 style="border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem; margin-bottom: 1.5rem; color: var(--primary);">Appearance</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h4 style="margin: 0; font-size: 1.1rem;">Theme Preference</h4>
+                    <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">Choose between light and dark mode</p>
+                </div>
+                <button type="button" onclick="document.getElementById('themeToggleBtn').click()" class="btn-secondary" style="border-radius: 0.75rem;">Toggle Theme</button>
+            </div>
+        </div>
+
+        <!-- Application Preferences -->
+        <div>
+            <h3 style="border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem; margin-bottom: 1.5rem; color: var(--primary);">Defaults</h3>
+            
+            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-weight: 500;">Default Target Language</label>
+                    <select style="width: 100%; padding: 1rem; border-radius: 1rem; border: 1px solid var(--glass-border); background: var(--glass-bg); color: var(--text-main); font-family: inherit; font-size: 1rem; outline: none; appearance: none;">
+                        <option value="en">English</option>
+                        <option value="es">Spanish</option>
+                        <option value="fr">French</option>
+                        <option value="de">German</option>
+                        <option value="ta">Tamil</option>
+                        <option value="hi">Hindi</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-weight: 500;">Default TTS Voice</label>
+                    <div style="display: flex; gap: 1rem;">
+                        <label style="flex: 1; padding: 1rem; border: 1px solid var(--primary); border-radius: 1rem; text-align: center; background: rgba(168, 85, 247, 0.1); color: var(--primary); cursor: pointer; font-weight: 600;">
+                            <input type="radio" name="voice" checked style="display: none;"> Auto
+                        </label>
+                        <label style="flex: 1; padding: 1rem; border: 1px solid var(--glass-border); border-radius: 1rem; text-align: center; background: var(--glass-bg); cursor: pointer;">
+                            <input type="radio" name="voice" style="display: none;"> Male
+                        </label>
+                        <label style="flex: 1; padding: 1rem; border: 1px solid var(--glass-border); border-radius: 1rem; text-align: center; background: var(--glass-bg); cursor: pointer;">
+                            <input type="radio" name="voice" style="display: none;"> Female
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button type="button" class="btn-primary" style="align-self: flex-start; margin-top: 1rem;">
+            Save Preferences
+        </button>
+    </div>
+</div>
+{% endblock %}

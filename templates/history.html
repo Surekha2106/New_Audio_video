@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Smart AI | Library{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 4rem; animation: fadeIn 0.8s ease-out;">
+    <h1 style="font-size: 3rem; margin-bottom: 0.75rem; color: #fff;">Project <span class="gradient-text">Library</span></h1>
+    <p style="color: var(--text-muted); font-size: 1.1rem;">Access and manage all your AI-generated assets in one place.</p>
+</div>
+
+<div class="glass-card animate-fade-in-up" style="padding: 0; overflow: hidden; border-radius: 2rem;">
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; min-width: 800px;">
+            <thead>
+                <tr style="background: rgba(15, 23, 42, 0.4);">
+                    <th style="padding: 1.5rem 2rem; color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em;">Asset Details</th>
+                    <th style="padding: 1.5rem 2rem; color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em;">Target Language</th>
+                    <th style="padding: 1.5rem 2rem; color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em;">Processed Date</th>
+                    <th style="padding: 1.5rem 2rem; color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in history %}
+                <tr class="table-row" style="border-top: 1px solid var(--glass-border); transition: var(--transition-smooth);">
+                    <td style="padding: 2rem;">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.05); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+                                {% if item.type == 'audio' %}🎵{% else %}📹{% endif %}
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; color: #fff; margin-bottom: 0.25rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ item.original }}</div>
+                                <div style="font-size: 0.75rem; color: var(--accent);">Status: Completed</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="padding: 2rem;">
+                        <span style="background: rgba(99, 102, 241, 0.1); color: var(--primary); padding: 0.4rem 0.8rem; border-radius: 8px; font-size: 0.8rem; font-weight: 700; border: 1px solid var(--primary-glow);">
+                            {{ item.target | upper }}
+                        </span>
+                    </td>
+                    <td style="padding: 2rem; color: var(--text-muted); font-size: 0.9rem;">{{ item.timestamp }}</td>
+                    <td style="padding: 2rem; text-align: right;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: flex-end;">
+                            <a href="{{ url_for('download', filename=item.output) }}" class="btn-primary" style="padding: 0.6rem 1.25rem; font-size: 0.85rem; border-radius: 0.75rem;">
+                                Download Media
+                            </a>
+                            {% if item.original_text_file %}
+                            <a href="{{ url_for('download_text', filename=item.original_text_file) }}" class="btn-secondary" style="padding: 0.6rem 1.25rem; font-size: 0.85rem; border-radius: 0.75rem;">
+                                Orig. Text
+                            </a>
+                            {% endif %}
+                            {% if item.translated_text_file %}
+                            <a href="{{ url_for('download_text', filename=item.translated_text_file) }}" class="btn-secondary" style="padding: 0.6rem 1.25rem; font-size: 0.85rem; border-radius: 0.75rem;">
+                                Trans. Text
+                            </a>
+                            {% endif %}
+                            {% if item.translated_text %}
+                            <button onclick="toggleTranscript('transcript-{{ loop.index }}')" class="btn-secondary" style="padding: 0.6rem 1.25rem; font-size: 0.85rem; border-radius: 0.75rem;">
+                                View Transcript
+                            </button>
+                            {% endif %}
+                            {% if item.id or item.output %}
+                            <a href="{{ url_for('delete_history', record_id=item.id|default(item.output)) }}" class="btn-secondary" style="padding: 0.6rem 1.25rem; font-size: 0.85rem; border-radius: 0.75rem; color: #f43f5e; border-color: rgba(244,63,94,0.3);">
+                                Delete
+                            </a>
+                            {% endif %}
+                        </div>
+                        
+                        {% if item.translated_text %}
+                        <div id="transcript-{{ loop.index }}" style="display: none; text-align: left; margin-top: 1.5rem; padding: 1.5rem; background: rgba(0,0,0,0.2); border-radius: 1rem; font-size: 0.9rem; color: var(--text-muted); line-height: 1.6; border: 1px solid var(--glass-border); animation: slideIn 0.3s ease-out;">
+                            <strong style="color: #fff; display: block; margin-bottom: 0.5rem;">AI Translation:</strong>
+                            {{ item.translated_text }}
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" style="padding: 6rem; text-align: center; color: var(--text-muted);">
+                        <div style="font-size: 3rem; margin-bottom: 1.5rem; opacity: 0.2;">📁</div>
+                        <p style="font-size: 1rem; margin-bottom: 1.5rem;">Your library is currently empty.</p>
+                        <a href="{{ url_for('project') }}" class="btn-primary" style="display: inline-flex;">Create Your First Project</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    
+    .table-row:hover {
+        background: rgba(255, 255, 255, 0.015);
+    }
+</style>
+
+<script>
+    function toggleTranscript(id) {
+        const div = document.getElementById(id);
+        const isOpen = div.style.display === "block";
+        
+        // Close all others first optionally (cleaner UI)
+        // document.querySelectorAll('[id^="transcript-"]').forEach(d => d.style.display = "none");
+        
+        if (!isOpen) {
+            div.style.display = "block";
+        } else {
+            div.style.display = "none";
+        }
+    }
+</script>
+{% endblock %}

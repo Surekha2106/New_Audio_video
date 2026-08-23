@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Smart AI | Sign In{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: center; align-items: center; min-height: 70vh;">
+    <div class="glass-card" style="max-width: 400px; width: 100%;">
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <h2 style="font-size: 2rem;">Welcome Back</h2>
+            <p style="color: var(--text-muted);">Sign in to your account</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('login') }}" style="display: flex; flex-direction: column; gap: 1.25rem;">
+            <div class="input-group">
+                <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.4rem;">Username or Email</label>
+                <input type="text" name="identifier" placeholder="Enter your username or email" required
+                       style="width: 100%; border: 1px solid var(--glass-border); background: rgba(0,0,0,0.2); color: white; padding: 0.8rem 1rem; border-radius: 0.75rem; font-family: inherit; font-size: 1rem; outline: none; transition: var(--transition-smooth);">
+            </div>
+
+            <div class="input-group">
+                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 0.4rem;">
+                    <label style="display: block; font-size: 0.85rem; color: var(--text-muted);">Password</label>
+                    <a href="#" style="font-size: 0.75rem; color: var(--primary); text-decoration: none;">Forgot password?</a>
+                </div>
+                <input type="password" name="password" placeholder="••••••••" required
+                       style="width: 100%; border: 1px solid var(--glass-border); background: rgba(0,0,0,0.2); color: white; padding: 0.8rem 1rem; border-radius: 0.75rem; font-family: inherit; font-size: 1rem; outline: none; transition: var(--transition-smooth);">
+            </div>
+
+            <button type="submit" class="btn-primary" style="padding: 1rem; font-size: 1.1rem; width: 100%; margin-top: 0.5rem; text-align:center;">
+                Sign In
+            </button>
+        </form>
+
+        <div style="text-align: center; margin-top: 1.5rem; color: var(--text-muted);">
+            New to Smart AI? <a href="{{ url_for('signup') }}" style="color: var(--primary); text-decoration: none; font-weight: 600;">Create account</a>
+        </div>
+    </div>
+</div>
+
+<style>
+    input:focus {
+        border-color: var(--primary) !important;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+</style>
+{% endblock %}

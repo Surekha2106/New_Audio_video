@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.mp4
+*.mp3
+*.wav
+uploads/
+outputs/
+temp/
+.git/
+.env
+app.db
+users.db
+VoskModel/

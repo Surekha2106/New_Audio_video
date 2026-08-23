@@ -1,0 +1,35 @@
+# Environments
+venv/
+whisper_env/
+.env
+
+# Models
+VoskModel/
+Wav2Lip/
+
+# App outputs and uploads
+outputs/
+processed/
+temp/
+uploads/
+
+# DBs & App Data
+app.db
+users.db
+*.db
+users.json
+history.json
+*.sqlite
+*.sqlite3
+
+# Python 
+__pycache__/
+*.pyc
+
+# Media
+*.wav
+*.mp3
+*.mp4
+*.avi
+*.mkv
+test.mp3

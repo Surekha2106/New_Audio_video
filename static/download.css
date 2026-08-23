@@ -1,0 +1,30 @@
+/* =======================
+downloads.css
+======================= */
+.download-list {
+    margin: 20px;
+}
+
+.download-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 15px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    margin-bottom: 10px;
+    transition: transform 0.2s ease;
+}
+
+.download-item:hover {
+    transform: translateX(5px);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.download-item a {
+    color: #00e5ff;
+    text-decoration: none;
+}
+
+.download-item a:hover {
+    text-decoration: underline;
+}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Smart AI | All Downloads{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 3rem;">
+    <h1 style="font-size: 2.5rem; margin-bottom: 0.5rem;">Total Asset Repository</h1>
+    <p style="color: var(--text-muted);">Manage and download all your generated media files.</p>
+</div>
+
+<div class="glass-card" style="padding: 2.5rem;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem;">
+        {% for file in files %}
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: 1rem; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+            <div style="font-size: 2rem;">🎞️</div>
+            <div style="font-size: 0.95rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-main);">
+                {{ file }}
+            </div>
+            <div style="margin-top: auto; display: flex; align-items: center; gap: 0.75rem;">
+                <a href="{{ url_for('download', filename=file) }}" class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; flex: 1; text-align: center;">Download</a>
+                <a href="{{ url_for('download', filename=file) }}" style="color: var(--text-muted); font-size: 1.25rem; text-decoration: none;" title="Watch Now">👁️</a>
+            </div>
+        </div>
+        {% else %}
+        <p style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 4rem;">
+            No media assets found in your account yet.
+        </p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

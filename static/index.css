@@ -1,0 +1,24 @@
+/* =======================
+   index.css
+   ======================= */
+.index-hero {
+    text-align: center;
+    margin-top: 100px;
+}
+
+.index-hero h1 {
+    color: #00e5ff;
+    font-size: 48px;
+    margin-bottom: 20px;
+}
+
+.index-hero p {
+    color: #ffffffaa;
+    font-size: 20px;
+    margin-bottom: 30px;
+}
+
+.index-hero .btn {
+    padding: 12px 30px;
+    font-size: 18px;
+}
