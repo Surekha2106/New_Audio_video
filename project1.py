@@ -31,7 +31,17 @@ logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.secret_key = "smart_translator_secure_key"
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(WRITE_DIR, 'app.db')
+
+database_url = os.environ.get("DATABASE_URL")
+
+if not database_url:
+    if IS_VERCEL:
+        raise RuntimeError("DATABASE_URL is not configured on Vercel")
+    else:
+        # Fallback to local SQLite for local development
+        database_url = 'sqlite:///' + os.path.join(WRITE_DIR, 'app.db')
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
