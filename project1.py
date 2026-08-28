@@ -13,11 +13,16 @@ from gtts import gTTS
 # ------------------------------
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-OUTPUT_FOLDER = os.path.join(BASE_DIR, 'outputs')
-TEMP_FOLDER = os.path.join(BASE_DIR, 'temp')
-VOSK_MODEL_FOLDER = os.path.join(BASE_DIR, "VoskModel")
-HISTORY_FILE = os.path.join(BASE_DIR, "history.json")
+
+# Vercel uses a read-only filesystem except for /tmp
+IS_VERCEL = os.environ.get('VERCEL') == '1'
+WRITE_DIR = "/tmp" if IS_VERCEL else BASE_DIR
+
+UPLOAD_FOLDER = os.path.join(WRITE_DIR, 'uploads')
+OUTPUT_FOLDER = os.path.join(WRITE_DIR, 'outputs')
+TEMP_FOLDER = os.path.join(WRITE_DIR, 'temp')
+VOSK_MODEL_FOLDER = os.path.join(BASE_DIR, "VoskModel") # Read-only, remains in BASE_DIR
+HISTORY_FILE = os.path.join(WRITE_DIR, "history.json")
 
 for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER, TEMP_FOLDER]:
     os.makedirs(folder, exist_ok=True)
@@ -26,7 +31,7 @@ logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.secret_key = "smart_translator_secure_key"
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(BASE_DIR, 'app.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(WRITE_DIR, 'app.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
