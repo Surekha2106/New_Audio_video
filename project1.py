@@ -245,7 +245,11 @@ def safe_translate(text, target_lang):
     if lang == "en":
         return clean_text
 
-    import urllib.request, urllib.parse, json
+    import urllib.request, urllib.parse, json, ssl
+
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
 
     # 1. Primary Engine: High-accuracy Google Translate API (dict-chrome-ex)
     try:
@@ -257,7 +261,7 @@ def safe_translate(text, target_lang):
                 "Accept": "*/*"
             }
         )
-        res_raw = urllib.request.urlopen(req, timeout=10).read().decode("utf-8")
+        res_raw = urllib.request.urlopen(req, context=ctx, timeout=10).read().decode("utf-8")
         res_json = json.loads(res_raw)
         result = "".join([part[0] for part in res_json[0] if part and len(part) > 0 and part[0]])
         if result and len(result.strip()) > 0:
@@ -275,7 +279,7 @@ def safe_translate(text, target_lang):
             chunk = " ".join(words[i:i + chunk_size])
             url_mem = f"https://api.mymemory.translated.net/get?q={urllib.parse.quote(chunk)}&langpair=en|{lang}"
             req_mem = urllib.request.Request(url_mem, headers={"User-Agent": "Mozilla/5.0"})
-            res_mem_raw = urllib.request.urlopen(req_mem, timeout=8).read().decode("utf-8")
+            res_mem_raw = urllib.request.urlopen(req_mem, context=ctx, timeout=8).read().decode("utf-8")
             res_mem_json = json.loads(res_mem_raw)
             t = res_mem_json.get("responseData", {}).get("translatedText")
             if t and "<html" not in t.lower() and "mymemory" not in t.lower():
@@ -289,6 +293,7 @@ def safe_translate(text, target_lang):
         logging.warning(f"MyMemory fallback failed: {e2}")
 
     return clean_text
+
 
 
 

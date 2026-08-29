@@ -3,12 +3,14 @@ FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
 
-# Install FFmpeg, wget, unzip, and required system packages
+# Install FFmpeg, wget, unzip, ca-certificates and required system packages
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libsndfile1 \
     wget \
     unzip \
+    ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory in the container
