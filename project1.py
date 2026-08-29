@@ -3,7 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-import os, uuid, threading, subprocess, wave, json, logging
+import os, uuid, threading, subprocess, wave, json, logging, shutil
 from datetime import datetime
 from deep_translator import GoogleTranslator
 from vosk import Model, KaldiRecognizer
@@ -35,6 +35,10 @@ app.secret_key = "smart_translator_secure_key"
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "")
 BACKEND_URL = os.environ.get("BACKEND_URL", "")
+
+@app.context_processor
+def inject_backend_url():
+    return {"backend_url": os.environ.get("BACKEND_URL", "")}
 
 database_url = os.environ.get("DATABASE_URL")
 
@@ -626,5 +630,13 @@ def settings():
     user = session.get("user")
     return render_template("settings.html", user=user)
 
+@app.route("/test-ffmpeg")
+def test_ffmpeg():
+    path = shutil.which("ffmpeg")
+    if path:
+        return {"status": "success", "ffmpeg": path}
+    return {"status": "error", "ffmpeg": None}, 500
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
