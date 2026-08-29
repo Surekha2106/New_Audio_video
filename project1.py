@@ -232,7 +232,7 @@ def generate_tts_audio(text, target_lang, voice_choice, output_mp3_path):
         tts.save(output_mp3_path)
 
 # ------------------------------
-# Translation Helper (Multi-Engine & Resilient)
+# Translation Helper (Chunked Multi-Engine)
 # ------------------------------
 
 def safe_translate(text, target_lang):
@@ -240,53 +240,51 @@ def safe_translate(text, target_lang):
         return ""
     
     clean_text = text.strip()
-    
-    # 1. Try Google Translator
-    try:
-        translator = GoogleTranslator(source="auto", target=target_lang)
-        result = translator.translate(clean_text)
-        if result and len(result.strip()) > 0:
-            error_signatures = ["error 500", "server error", "that's an error", "500.that", "<html", "<!doctype", "please try again later"]
-            if not any(sig in result.lower() for sig in error_signatures):
-                if result.lower() != clean_text.lower() or target_lang in ["en", "en-us"]:
-                    logging.info(f"GoogleTranslator succeeded for {target_lang}")
-                    return result
-    except Exception as e:
-        logging.warning(f"GoogleTranslator failed: {e}")
+    lang_code = target_lang.split("-")[0].lower()
 
-    # 2. Fallback to MyMemoryTranslator (reliable on datacenter IPs)
-    try:
-        # MyMemory handles language codes like 'hi', 'ta', 'te', 'es', 'fr', etc.
-        lang_code = target_lang.split("-")[0].lower()
-        mymem = MyMemoryTranslator(source="en", target=lang_code)
-        result2 = mymem.translate(clean_text)
-        if result2 and len(result2.strip()) > 0 and "<html" not in result2.lower() and "mymemory" not in result2.lower():
-            logging.info(f"MyMemoryTranslator succeeded for {target_lang}")
-            return result2
-    except Exception as e2:
-        logging.warning(f"MyMemoryTranslator failed: {e2}")
+    if lang_code == "en":
+        return clean_text
 
-    # 3. Sentence-by-sentence translation fallback
-    try:
-        sentences = [s.strip() for s in clean_text.split(".") if s.strip()]
-        if len(sentences) > 1:
-            trans_list = []
-            for s in sentences:
-                try:
-                    t_s = GoogleTranslator(source="auto", target=target_lang).translate(s)
-                    if t_s and not any(sig in t_s.lower() for sig in ["error 500", "server error"]):
-                        trans_list.append(t_s)
-                    else:
-                        trans_list.append(s)
-                except:
-                    trans_list.append(s)
-            combined = ". ".join(trans_list)
-            if combined != clean_text:
-                return combined
-    except Exception as e3:
-        logging.warning(f"Sentence translation fallback failed: {e3}")
+    # Vosk speech recognition text has no periods.
+    # We chunk words into groups of 15-20 words so translation services never fail on request limits.
+    words = clean_text.split()
+    chunk_size = 18
+    chunks = []
+    for i in range(0, len(words), chunk_size):
+        chunks.append(" ".join(words[i:i + chunk_size]))
 
-    return clean_text
+    translated_chunks = []
+    for chunk in chunks:
+        trans = None
+
+        # 1. Try Google Translator with direct source='en'
+        try:
+            res = GoogleTranslator(source="en", target=lang_code).translate(chunk)
+            if res and len(res.strip()) > 0:
+                error_signatures = ["error 500", "server error", "that's an error", "500.that", "<html", "<!doctype", "please try again later"]
+                if not any(sig in res.lower() for sig in error_signatures):
+                    if res.lower() != chunk.lower():
+                        trans = res.strip()
+        except Exception as e:
+            logging.warning(f"GoogleTranslator error on chunk: {e}")
+
+        # 2. Try MyMemory Translator
+        if not trans:
+            try:
+                res = MyMemoryTranslator(source="en", target=lang_code).translate(chunk)
+                if res and len(res.strip()) > 0 and "<html" not in res.lower() and "mymemory" not in res.lower() and "warning" not in res.lower():
+                    if res.lower() != chunk.lower():
+                        trans = res.strip()
+            except Exception as e:
+                logging.warning(f"MyMemoryTranslator error on chunk: {e}")
+
+        # 3. If translation succeeded use it, otherwise keep original chunk
+        translated_chunks.append(trans if trans else chunk)
+
+    final_translated = " ".join(translated_chunks)
+    logging.info(f"Translation complete into [{lang_code}]: {final_translated[:100]}...")
+    return final_translated
+
 
 # ------------------------------
 # Video Processing
