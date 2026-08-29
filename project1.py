@@ -232,7 +232,7 @@ def generate_tts_audio(text, target_lang, voice_choice, output_mp3_path):
         tts.save(output_mp3_path)
 
 # ------------------------------
-# Translation Helper (Chunked Multi-Engine)
+# Translation Helper (Direct & Resilient)
 # ------------------------------
 
 def safe_translate(text, target_lang):
@@ -240,50 +240,46 @@ def safe_translate(text, target_lang):
         return ""
     
     clean_text = text.strip()
-    lang_code = target_lang.split("-")[0].lower()
+    lang = target_lang.split("-")[0].lower()
 
-    if lang_code == "en":
+    if lang == "en":
         return clean_text
 
-    # Vosk speech recognition text has no periods.
-    # We chunk words into groups of 15-20 words so translation services never fail on request limits.
+    import urllib.request, urllib.parse
+
     words = clean_text.split()
-    chunk_size = 18
-    chunks = []
+    chunk_size = 15
+    translated = []
+
     for i in range(0, len(words), chunk_size):
-        chunks.append(" ".join(words[i:i + chunk_size]))
-
-    translated_chunks = []
-    for chunk in chunks:
-        trans = None
-
-        # 1. Try Google Translator with direct source='en'
+        chunk = " ".join(words[i:i + chunk_size])
         try:
-            res = GoogleTranslator(source="en", target=lang_code).translate(chunk)
-            if res and len(res.strip()) > 0:
-                error_signatures = ["error 500", "server error", "that's an error", "500.that", "<html", "<!doctype", "please try again later"]
-                if not any(sig in res.lower() for sig in error_signatures):
-                    if res.lower() != chunk.lower():
-                        trans = res.strip()
+            url = f"https://api.mymemory.translated.net/get?q={urllib.parse.quote(chunk)}&langpair=en|{lang}"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            res_raw = urllib.request.urlopen(req, timeout=12).read().decode("utf-8")
+            res_json = json.loads(res_raw)
+            t_text = res_json.get("responseData", {}).get("translatedText")
+            if t_text and "mymemory" not in t_text.lower() and "<html" not in t_text.lower() and "warning" not in t_text.lower():
+                translated.append(t_text.strip())
+            else:
+                # Fallback to GoogleTranslator chunk
+                try:
+                    g_res = GoogleTranslator(source="en", target=lang).translate(chunk)
+                    translated.append(g_res.strip() if g_res else chunk)
+                except:
+                    translated.append(chunk)
         except Exception as e:
-            logging.warning(f"GoogleTranslator error on chunk: {e}")
-
-        # 2. Try MyMemory Translator
-        if not trans:
+            logging.warning(f"Translation chunk error: {e}")
             try:
-                res = MyMemoryTranslator(source="en", target=lang_code).translate(chunk)
-                if res and len(res.strip()) > 0 and "<html" not in res.lower() and "mymemory" not in res.lower() and "warning" not in res.lower():
-                    if res.lower() != chunk.lower():
-                        trans = res.strip()
-            except Exception as e:
-                logging.warning(f"MyMemoryTranslator error on chunk: {e}")
+                g_res = GoogleTranslator(source="en", target=lang).translate(chunk)
+                translated.append(g_res.strip() if g_res else chunk)
+            except:
+                translated.append(chunk)
 
-        # 3. If translation succeeded use it, otherwise keep original chunk
-        translated_chunks.append(trans if trans else chunk)
+    final_result = " ".join(translated)
+    logging.info(f"Translation result for [{lang}]: {final_result}")
+    return final_result
 
-    final_translated = " ".join(translated_chunks)
-    logging.info(f"Translation complete into [{lang_code}]: {final_translated[:100]}...")
-    return final_translated
 
 
 # ------------------------------
