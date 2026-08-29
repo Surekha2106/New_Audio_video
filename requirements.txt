@@ -7,3 +7,4 @@ gTTS==2.5.1
 SQLAlchemy==2.0.29
 edge-tts==6.1.12
 psycopg2-binary==2.9.9
+Flask-Cors==4.0.0

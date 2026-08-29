@@ -101,7 +101,8 @@
     const downloadTransTextBtn = document.getElementById('downloadTransTextBtn');
 
     function checkStatus() {
-        fetch(`/audio_progress_status/${jobId}`)
+        const backendUrl = "{% if backend_url %}{{ backend_url }}{% endif %}";
+        fetch(`${backendUrl}/audio_progress_status/${jobId}`)
             .then(response => response.json())
             .then(data => {
                 if (data.progress === -1) {
@@ -125,12 +126,12 @@
                     
                     // Populate data
                     document.getElementById('translatedText').innerText = data.translated_text || "Translation transcript prepared.";
-                    document.getElementById('audioSource').src = `/download/${data.output}`;
+                    document.getElementById('audioSource').src = `${backendUrl}/download/${data.output}`;
                     
                     document.getElementById('audioPreview').load();
-                    downloadBtn.href = `/download/${data.output}`;
-                    downloadOrigTextBtn.href = `/download_text/${data.original_text_file}`;
-                    downloadTransTextBtn.href = `/download_text/${data.translated_text_file}`;
+                    downloadBtn.href = `${backendUrl}/download/${data.output}`;
+                    downloadOrigTextBtn.href = `${backendUrl}/download_text/${data.original_text_file}`;
+                    downloadTransTextBtn.href = `${backendUrl}/download_text/${data.translated_text_file}`;
                     
                     // Animation
                     actionArea.style.display = 'block';

@@ -1,6 +1,8 @@
 # Use an official Python runtime as a parent image
 FROM python:3.10-slim
 
+ENV PYTHONUNBUFFERED=1
+
 # Install system dependencies (FFmpeg is critical for this project)
 RUN apt-get update && apt-get install -y \
     ffmpeg \

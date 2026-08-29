@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import os, uuid, threading, subprocess, wave, json, logging
@@ -22,7 +23,6 @@ UPLOAD_FOLDER = os.path.join(WRITE_DIR, 'uploads')
 OUTPUT_FOLDER = os.path.join(WRITE_DIR, 'outputs')
 TEMP_FOLDER = os.path.join(WRITE_DIR, 'temp')
 VOSK_MODEL_FOLDER = os.path.join(BASE_DIR, "VoskModel") # Read-only, remains in BASE_DIR
-HISTORY_FILE = os.path.join(WRITE_DIR, "history.json")
 
 for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER, TEMP_FOLDER]:
     os.makedirs(folder, exist_ok=True)
@@ -30,7 +30,11 @@ for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER, TEMP_FOLDER]:
 logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
+CORS(app)
 app.secret_key = "smart_translator_secure_key"
+
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "")
+BACKEND_URL = os.environ.get("BACKEND_URL", "")
 
 database_url = os.environ.get("DATABASE_URL")
 
@@ -57,6 +61,18 @@ class User(db.Model):
     password = db.Column(db.String(200), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+class ProjectHistory(db.Model):
+    id = db.Column(db.String(32), primary_key=True)
+    username = db.Column(db.String(80), nullable=False)
+    type = db.Column(db.String(20), nullable=False)
+    original = db.Column(db.String(255), nullable=False)
+    target = db.Column(db.String(20), nullable=False)
+    output = db.Column(db.String(255), nullable=True)
+    translated_text = db.Column(db.Text, nullable=True)
+    original_text_file = db.Column(db.String(255), nullable=True)
+    translated_text_file = db.Column(db.String(255), nullable=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
 with app.app_context():
     db.create_all()
 
@@ -80,44 +96,32 @@ jobs = {}
 jobs_lock = threading.Lock()
 
 # ------------------------------
-# JSON Helpers for History
+# Database Helpers for History
 # ------------------------------
 
-def load_json(path):
-    if not os.path.exists(path):
-        return {}
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return {}
-
-def save_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-
 def update_history(username, original_file, target_lang, output_file, translated_text="", proj_type="video", original_text_file="", translated_text_file=""):
-    data = load_json(HISTORY_FILE)
-    if username not in data:
-        data[username] = []
-    
-    record_id = uuid.uuid4().hex[:8]
-    
-    data[username].insert(0, {
-        "id": record_id,
-        "type": proj_type,
-        "original": original_file,
-        "target": target_lang,
-        "output": output_file,
-        "translated_text": translated_text,
-        "original_text_file": original_text_file,
-        "translated_text_file": translated_text_file,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    })
-    
-    # Keep only last 50 items
-    data[username] = data[username][:50]
-    save_json(HISTORY_FILE, data)
+    with app.app_context():
+        record_id = uuid.uuid4().hex[:8]
+        new_hist = ProjectHistory(
+            id=record_id,
+            username=username,
+            type=proj_type,
+            original=original_file,
+            target=target_lang,
+            output=output_file,
+            translated_text=translated_text,
+            original_text_file=original_text_file,
+            translated_text_file=translated_text_file
+        )
+        db.session.add(new_hist)
+        
+        # Keep only last 50 items per user
+        user_history = ProjectHistory.query.filter_by(username=username).order_by(ProjectHistory.timestamp.desc()).all()
+        if len(user_history) > 50:
+            for old_record in user_history[50:]:
+                db.session.delete(old_record)
+                
+        db.session.commit()
 
 # ------------------------------
 # Video Processing
@@ -454,46 +458,46 @@ def logout():
     flash("You have been logged out.","info")
     return redirect(url_for("index"))
 
-@app.route("/project", methods=["GET","POST"])
+@app.route("/project", methods=["GET"])
 def project():
     if 'user' not in session:
         return redirect(url_for("login"))
 
-    if request.method=="POST":
-        if 'video' not in request.files or request.files['video'].filename=='':
-            flash("Please select a video file.","error")
-            return redirect(url_for("project"))
-
-        file = request.files["video"]
-        original_name = file.filename
-        filename = secure_filename(file.filename)
-        unique_id = uuid.uuid4().hex[:8]
-        basename = f"{os.path.splitext(filename)[0]}_{unique_id}"
-        filepath = os.path.join(UPLOAD_FOLDER, f"{basename}{os.path.splitext(filename)[1]}")
-        file.save(filepath)
-
-        target_lang = request.form.get("target","en")
-        voice_choice = request.form.get("voice","auto")
-        job_id = basename
-        username = session.get("user")
-
-        threading.Thread(
-            target=process_video,
-            args=(filepath, basename, original_name, target_lang, voice_choice, job_id, username),
-            daemon=True
-        ).start()
-
-        flash("Optimization and translation started!","info")
-        return redirect(url_for("progress", job_id=job_id))
-
     user = session.get("user")
-    history_data = load_json(HISTORY_FILE).get(user, [])[:5]
-    return render_template("dashboard.html", history=history_data, user=user)
+    history_data = ProjectHistory.query.filter_by(username=user, type='video').order_by(ProjectHistory.timestamp.desc()).limit(5).all()
+    return render_template("dashboard.html", history=history_data, user=user, backend_url=BACKEND_URL)
+
+@app.route("/api/upload_video", methods=["POST"])
+def upload_video():
+    if 'video' not in request.files or request.files['video'].filename=='':
+        return jsonify({"error": "No video file"}), 400
+
+    file = request.files["video"]
+    original_name = file.filename
+    filename = secure_filename(file.filename)
+    unique_id = uuid.uuid4().hex[:8]
+    basename = f"{os.path.splitext(filename)[0]}_{unique_id}"
+    filepath = os.path.join(UPLOAD_FOLDER, f"{basename}{os.path.splitext(filename)[1]}")
+    file.save(filepath)
+
+    target_lang = request.form.get("target","en")
+    voice_choice = request.form.get("voice","auto")
+    job_id = basename
+    username = request.form.get("username", "anonymous")
+
+    threading.Thread(
+        target=process_video,
+        args=(filepath, basename, original_name, target_lang, voice_choice, job_id, username),
+        daemon=True
+    ).start()
+
+    redirect_base = FRONTEND_URL if FRONTEND_URL else request.host_url.rstrip('/')
+    return redirect(f"{redirect_base}/progress/{job_id}")
 
 @app.route("/progress/<job_id>")
 def progress(job_id):
     if 'user' not in session: return redirect(url_for("login"))
-    return render_template("progress.html", job_id=job_id)
+    return render_template("progress.html", job_id=job_id, backend_url=BACKEND_URL)
 
 @app.route("/progress_status/<job_id>")
 def progress_status(job_id):
@@ -527,48 +531,46 @@ def download_text(filename):
         return send_file(path, as_attachment=True, mimetype="text/plain")
     return "File not found", 404
 
-@app.route("/audio_project", methods=["GET","POST"])
+@app.route("/audio_project", methods=["GET"])
 def audio_project():
     if 'user' not in session:
         return redirect(url_for("login"))
 
-    if request.method=="POST":
-        if 'audio' not in request.files or request.files['audio'].filename=='':
-            flash("Please select an audio file.","error")
-            return redirect(url_for("audio_project"))
-
-        file = request.files["audio"]
-        original_name = file.filename
-        filename = secure_filename(file.filename)
-        unique_id = uuid.uuid4().hex[:8]
-        basename = f"{os.path.splitext(filename)[0]}_{unique_id}"
-        filepath = os.path.join(UPLOAD_FOLDER, f"{basename}{os.path.splitext(filename)[1]}")
-        file.save(filepath)
-
-        target_lang = request.form.get("target","en")
-        voice_choice = request.form.get("voice","auto")
-        job_id = basename
-        username = session.get("user")
-
-        threading.Thread(
-            target=process_audio,
-            args=(filepath, basename, original_name, target_lang, voice_choice, job_id, username),
-            daemon=True
-        ).start()
-
-        flash("Audio transcription and translation started!","info")
-        return redirect(url_for("audio_progress", job_id=job_id))
-
     user = session.get("user")
-    # Only show audio history on audio dashboard if preferred, or just mixed. 
-    # Current history template takes everything. We'll pass mixed for now.
-    history_data = load_json(HISTORY_FILE).get(user, [])[:5]
-    return render_template("audio_dashboard.html", history=history_data, user=user)
+    history_data = ProjectHistory.query.filter_by(username=user, type='audio').order_by(ProjectHistory.timestamp.desc()).limit(5).all()
+    return render_template("audio_dashboard.html", history=history_data, user=user, backend_url=BACKEND_URL)
+
+@app.route("/api/upload_audio", methods=["POST"])
+def upload_audio():
+    if 'audio' not in request.files or request.files['audio'].filename=='':
+        return jsonify({"error": "No audio file"}), 400
+
+    file = request.files["audio"]
+    original_name = file.filename
+    filename = secure_filename(file.filename)
+    unique_id = uuid.uuid4().hex[:8]
+    basename = f"{os.path.splitext(filename)[0]}_{unique_id}"
+    filepath = os.path.join(UPLOAD_FOLDER, f"{basename}{os.path.splitext(filename)[1]}")
+    file.save(filepath)
+
+    target_lang = request.form.get("target","en")
+    voice_choice = request.form.get("voice","auto")
+    job_id = basename
+    username = request.form.get("username", "anonymous")
+
+    threading.Thread(
+        target=process_audio,
+        args=(filepath, basename, original_name, target_lang, voice_choice, job_id, username),
+        daemon=True
+    ).start()
+
+    redirect_base = FRONTEND_URL if FRONTEND_URL else request.host_url.rstrip('/')
+    return redirect(f"{redirect_base}/audio_progress/{job_id}")
 
 @app.route("/audio_progress/<job_id>")
 def audio_progress(job_id):
     if 'user' not in session: return redirect(url_for("login"))
-    return render_template("audio_progress.html", job_id=job_id)
+    return render_template("audio_progress.html", job_id=job_id, backend_url=BACKEND_URL)
 
 @app.route("/audio_progress_status/<job_id>")
 def audio_progress_status(job_id):
@@ -578,34 +580,32 @@ def audio_progress_status(job_id):
 def history_page():
     if 'user' not in session: return redirect(url_for("login"))
     user = session.get("user")
-    history = load_json(HISTORY_FILE).get(user, [])
-    return render_template("history.html", history=history)
+    history = ProjectHistory.query.filter_by(username=user).order_by(ProjectHistory.timestamp.desc()).all()
+    return render_template("history.html", history=history, backend_url=BACKEND_URL)
 
 @app.route("/delete_history/<record_id>")
 def delete_history(record_id):
     if 'user' not in session: return redirect(url_for("login"))
     user = session.get("user")
-    data = load_json(HISTORY_FILE)
-    if user in data:
-        # Find the record by id or output
-        new_hist = []
-        for item in data[user]:
-            if item.get("id") == record_id or item.get("output") == record_id:
-                # Optionally delete physical files
-                if item.get("output"):
-                    out_path = os.path.join(OUTPUT_FOLDER, item.get("output"))
-                    if os.path.exists(out_path): os.remove(out_path)
-                if item.get("original_text_file"):
-                    text_path = os.path.join(OUTPUT_FOLDER, item.get("original_text_file"))
-                    if os.path.exists(text_path): os.remove(text_path)
-                if item.get("translated_text_file"):
-                    text_path = os.path.join(OUTPUT_FOLDER, item.get("translated_text_file"))
-                    if os.path.exists(text_path): os.remove(text_path)
-                continue # Skip adding to new_hist
-            new_hist.append(item)
-        data[user] = new_hist
-        save_json(HISTORY_FILE, data)
+    
+    # record_id could be the id or output filename
+    record = ProjectHistory.query.filter((ProjectHistory.id == record_id) | (ProjectHistory.output == record_id)).filter_by(username=user).first()
+    
+    if record:
+        if record.output:
+            out_path = os.path.join(OUTPUT_FOLDER, record.output)
+            if os.path.exists(out_path): os.remove(out_path)
+        if record.original_text_file:
+            text_path = os.path.join(OUTPUT_FOLDER, record.original_text_file)
+            if os.path.exists(text_path): os.remove(text_path)
+        if record.translated_text_file:
+            text_path = os.path.join(OUTPUT_FOLDER, record.translated_text_file)
+            if os.path.exists(text_path): os.remove(text_path)
+            
+        db.session.delete(record)
+        db.session.commit()
         flash("Record deleted successfully.", "success")
+        
     return redirect(url_for("history_page"))
 
 @app.route("/downloads")

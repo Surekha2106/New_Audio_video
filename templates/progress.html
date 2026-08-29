@@ -90,7 +90,8 @@
     const downloadBtn = document.getElementById('downloadBtn');
 
     function checkStatus() {
-        fetch(`/progress_status/${jobId}`)
+        const backendUrl = "{% if backend_url %}{{ backend_url }}{% endif %}";
+        fetch(`${backendUrl}/progress_status/${jobId}`)
             .then(response => response.json())
             .then(data => {
                 if (data.progress === -1) {
@@ -115,10 +116,10 @@
                     
                     // Populate data
                     document.getElementById('translatedText').innerText = data.translated_text || "Translation transcript prepared.";
-                    document.getElementById('videoSource').src = `/output_video/${data.output}`;
+                    document.getElementById('videoSource').src = `${backendUrl}/output_video/${data.output}`;
                     
                     document.getElementById('videoPreview').load();
-                    downloadBtn.href = `/download/${data.output}`;
+                    downloadBtn.href = `${backendUrl}/download/${data.output}`;
                     
                     // Animation
                     actionArea.style.display = 'block';
