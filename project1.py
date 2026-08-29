@@ -34,11 +34,12 @@ CORS(app)
 app.secret_key = "smart_translator_secure_key"
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "")
-BACKEND_URL = os.environ.get("BACKEND_URL", "")
+BACKEND_URL = os.environ.get("BACKEND_URL") or "https://new-audio-video.onrender.com"
 
 @app.context_processor
 def inject_backend_url():
-    return {"backend_url": os.environ.get("BACKEND_URL", "")}
+    return {"backend_url": os.environ.get("BACKEND_URL") or "https://new-audio-video.onrender.com"}
+
 
 database_url = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
 
