@@ -36,4 +36,4 @@ RUN mkdir -p uploads outputs temp
 EXPOSE 10000
 
 # Run gunicorn to serve the Flask app
-CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--timeout", "600", "project1:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--workers", "1", "--threads", "8", "--timeout", "600", "project1:app"]

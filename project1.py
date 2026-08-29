@@ -525,6 +525,9 @@ def upload_video():
     job_id = basename
     username = request.form.get("username", "anonymous")
 
+    with jobs_lock:
+        jobs[job_id] = {"progress": 1, "output": None, "error": None}
+
     threading.Thread(
         target=process_video,
         args=(filepath, basename, original_name, target_lang, voice_choice, job_id, username),
@@ -541,7 +544,11 @@ def progress(job_id):
 
 @app.route("/progress_status/<job_id>")
 def progress_status(job_id):
-    return jsonify(jobs.get(job_id, {"progress":-1, "error":"Job not found"}))
+    with jobs_lock:
+        job = jobs.get(job_id)
+        if not job:
+            return jsonify({"progress": 1, "status": "initializing"})
+        return jsonify(job)
 
 @app.route("/output_video/<filename>")
 def output_video(filename):
@@ -598,6 +605,9 @@ def upload_audio():
     job_id = basename
     username = request.form.get("username", "anonymous")
 
+    with jobs_lock:
+        jobs[job_id] = {"progress": 1, "output": None, "error": None, "original_text_file": None, "translated_text_file": None}
+
     threading.Thread(
         target=process_audio,
         args=(filepath, basename, original_name, target_lang, voice_choice, job_id, username),
@@ -614,7 +624,11 @@ def audio_progress(job_id):
 
 @app.route("/audio_progress_status/<job_id>")
 def audio_progress_status(job_id):
-    return jsonify(jobs.get(job_id, {"progress":-1, "error":"Job not found"}))
+    with jobs_lock:
+        job = jobs.get(job_id)
+        if not job:
+            return jsonify({"progress": 1, "status": "initializing"})
+        return jsonify(job)
 
 @app.route("/history")
 def history_page():
