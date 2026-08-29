@@ -245,40 +245,51 @@ def safe_translate(text, target_lang):
     if lang == "en":
         return clean_text
 
-    import urllib.request, urllib.parse
+    import urllib.request, urllib.parse, json
 
-    words = clean_text.split()
-    chunk_size = 15
-    translated = []
+    # 1. Primary Engine: High-accuracy Google Translate API (dict-chrome-ex)
+    try:
+        url = f"https://translate.googleapis.com/translate_a/single?client=dict-chrome-ex&sl=auto&tl={lang}&dt=t&q={urllib.parse.quote(clean_text)}"
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "*/*"
+            }
+        )
+        res_raw = urllib.request.urlopen(req, timeout=10).read().decode("utf-8")
+        res_json = json.loads(res_raw)
+        result = "".join([part[0] for part in res_json[0] if part and len(part) > 0 and part[0]])
+        if result and len(result.strip()) > 0:
+            logging.info(f"Google API translation success into [{lang}]: {result[:80]}")
+            return result.strip()
+    except Exception as e:
+        logging.warning(f"Primary Google API translation failed: {e}")
 
-    for i in range(0, len(words), chunk_size):
-        chunk = " ".join(words[i:i + chunk_size])
-        try:
-            url = f"https://api.mymemory.translated.net/get?q={urllib.parse.quote(chunk)}&langpair=en|{lang}"
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-            res_raw = urllib.request.urlopen(req, timeout=12).read().decode("utf-8")
-            res_json = json.loads(res_raw)
-            t_text = res_json.get("responseData", {}).get("translatedText")
-            if t_text and "mymemory" not in t_text.lower() and "<html" not in t_text.lower() and "warning" not in t_text.lower():
-                translated.append(t_text.strip())
+    # 2. Fallback Engine: MyMemory API in word chunks
+    try:
+        words = clean_text.split()
+        chunk_size = 15
+        translated_chunks = []
+        for i in range(0, len(words), chunk_size):
+            chunk = " ".join(words[i:i + chunk_size])
+            url_mem = f"https://api.mymemory.translated.net/get?q={urllib.parse.quote(chunk)}&langpair=en|{lang}"
+            req_mem = urllib.request.Request(url_mem, headers={"User-Agent": "Mozilla/5.0"})
+            res_mem_raw = urllib.request.urlopen(req_mem, timeout=8).read().decode("utf-8")
+            res_mem_json = json.loads(res_mem_raw)
+            t = res_mem_json.get("responseData", {}).get("translatedText")
+            if t and "<html" not in t.lower() and "mymemory" not in t.lower():
+                translated_chunks.append(t.strip())
             else:
-                # Fallback to GoogleTranslator chunk
-                try:
-                    g_res = GoogleTranslator(source="en", target=lang).translate(chunk)
-                    translated.append(g_res.strip() if g_res else chunk)
-                except:
-                    translated.append(chunk)
-        except Exception as e:
-            logging.warning(f"Translation chunk error: {e}")
-            try:
-                g_res = GoogleTranslator(source="en", target=lang).translate(chunk)
-                translated.append(g_res.strip() if g_res else chunk)
-            except:
-                translated.append(chunk)
+                translated_chunks.append(chunk)
+        final_mem = " ".join(translated_chunks)
+        if final_mem and final_mem != clean_text:
+            return final_mem
+    except Exception as e2:
+        logging.warning(f"MyMemory fallback failed: {e2}")
 
-    final_result = " ".join(translated)
-    logging.info(f"Translation result for [{lang}]: {final_result}")
-    return final_result
+    return clean_text
+
 
 
 
