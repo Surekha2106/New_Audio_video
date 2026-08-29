@@ -70,6 +70,12 @@ class User(db.Model):
     password = db.Column(db.String(200), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    def __init__(self, username=None, email=None, password=None, **kwargs):
+        super().__init__(**kwargs)
+        if username is not None: self.username = username
+        if email is not None: self.email = email
+        if password is not None: self.password = password
+
 class ProjectHistory(db.Model):
     id = db.Column(db.String(32), primary_key=True)
     username = db.Column(db.String(80), nullable=False)
@@ -81,6 +87,20 @@ class ProjectHistory(db.Model):
     original_text_file = db.Column(db.String(255), nullable=True)
     translated_text_file = db.Column(db.String(255), nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __init__(self, id=None, username=None, type=None, original=None, target=None, output=None, translated_text=None, original_text_file=None, translated_text_file=None, timestamp=None, **kwargs):
+        super().__init__(**kwargs)
+        if id is not None: self.id = id
+        if username is not None: self.username = username
+        if type is not None: self.type = type
+        if original is not None: self.original = original
+        if target is not None: self.target = target
+        if output is not None: self.output = output
+        if translated_text is not None: self.translated_text = translated_text
+        if original_text_file is not None: self.original_text_file = original_text_file
+        if translated_text_file is not None: self.translated_text_file = translated_text_file
+        if timestamp is not None: self.timestamp = timestamp
+
 
 with app.app_context():
     db.create_all()
