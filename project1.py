@@ -5,7 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import os, uuid, threading, subprocess, wave, json, logging, shutil
 from datetime import datetime
-from deep_translator import GoogleTranslator
+from deep_translator import GoogleTranslator, MyMemoryTranslator
 from vosk import Model, KaldiRecognizer
 from gtts import gTTS
 
@@ -232,26 +232,61 @@ def generate_tts_audio(text, target_lang, voice_choice, output_mp3_path):
         tts.save(output_mp3_path)
 
 # ------------------------------
-# Translation Helper (Clean & Resilient)
+# Translation Helper (Multi-Engine & Resilient)
 # ------------------------------
 
 def safe_translate(text, target_lang):
     if not text or not text.strip():
         return ""
+    
+    clean_text = text.strip()
+    
+    # 1. Try Google Translator
     try:
         translator = GoogleTranslator(source="auto", target=target_lang)
-        result = translator.translate(text.strip())
-        if result:
-            # Filter out error pages returned by Google web scraping
+        result = translator.translate(clean_text)
+        if result and len(result.strip()) > 0:
             error_signatures = ["error 500", "server error", "that's an error", "500.that", "<html", "<!doctype", "please try again later"]
-            if any(sig in result.lower() for sig in error_signatures):
-                logging.warning("Google translate returned error message, falling back to clean text.")
-                return text
-            return result
-        return text
+            if not any(sig in result.lower() for sig in error_signatures):
+                if result.lower() != clean_text.lower() or target_lang in ["en", "en-us"]:
+                    logging.info(f"GoogleTranslator succeeded for {target_lang}")
+                    return result
     except Exception as e:
-        logging.warning(f"Translation exception ({e}), using original text.")
-        return text
+        logging.warning(f"GoogleTranslator failed: {e}")
+
+    # 2. Fallback to MyMemoryTranslator (reliable on datacenter IPs)
+    try:
+        # MyMemory handles language codes like 'hi', 'ta', 'te', 'es', 'fr', etc.
+        lang_code = target_lang.split("-")[0].lower()
+        mymem = MyMemoryTranslator(source="en", target=lang_code)
+        result2 = mymem.translate(clean_text)
+        if result2 and len(result2.strip()) > 0 and "<html" not in result2.lower() and "mymemory" not in result2.lower():
+            logging.info(f"MyMemoryTranslator succeeded for {target_lang}")
+            return result2
+    except Exception as e2:
+        logging.warning(f"MyMemoryTranslator failed: {e2}")
+
+    # 3. Sentence-by-sentence translation fallback
+    try:
+        sentences = [s.strip() for s in clean_text.split(".") if s.strip()]
+        if len(sentences) > 1:
+            trans_list = []
+            for s in sentences:
+                try:
+                    t_s = GoogleTranslator(source="auto", target=target_lang).translate(s)
+                    if t_s and not any(sig in t_s.lower() for sig in ["error 500", "server error"]):
+                        trans_list.append(t_s)
+                    else:
+                        trans_list.append(s)
+                except:
+                    trans_list.append(s)
+            combined = ". ".join(trans_list)
+            if combined != clean_text:
+                return combined
+    except Exception as e3:
+        logging.warning(f"Sentence translation fallback failed: {e3}")
+
+    return clean_text
 
 # ------------------------------
 # Video Processing
@@ -331,13 +366,43 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
         with jobs_lock:
             jobs[job_id]["progress"] = 85
 
-        # 6. Merge Video + High Quality AAC Audio
+        # 6. Audio-Video Duration Sync & Volume Boost
+        try:
+            meta_vid = subprocess.check_output([
+                "ffprobe", "-v", "error", "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1", filepath
+            ]).decode("utf-8").strip()
+            orig_dur = float(meta_vid)
+        except:
+            orig_dur = 1.0
+
+        try:
+            meta_aud = subprocess.check_output([
+                "ffprobe", "-v", "error", "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1", tts_wav
+            ]).decode("utf-8").strip()
+            aud_dur = float(meta_aud)
+        except:
+            aud_dur = 1.0
+
+        # Build audio filter: volume boost (volume=2.2) + duration matching (atempo) if speech is longer than video
+        audio_filters = ["volume=2.2"]
+        if orig_dur > 1.0 and aud_dur > orig_dur:
+            speed_ratio = aud_dur / orig_dur
+            speed_ratio = max(1.0, min(1.30, speed_ratio))
+            if speed_ratio > 1.05:
+                audio_filters.append(f"atempo={speed_ratio:.2f}")
+
+        audio_filter_str = ",".join(audio_filters)
+
+        # 7. Merge Video + Boosted Audio (Natural video playback, loud & clear audio)
         final_video_name = f"{basename}_translated.mp4"
         final_video_path = os.path.join(OUTPUT_FOLDER, final_video_name)
         
         subprocess.run([
             "ffmpeg","-y","-i", filepath, "-i", tts_wav,
             "-c:v", "libx264", "-preset", "ultrafast",
+            "-af", audio_filter_str,
             "-c:a", "aac", "-b:a", "192k",
             "-map","0:v:0", "-map","1:a:0",
             "-shortest", final_video_path
@@ -424,9 +489,17 @@ def process_audio(filepath, basename, original_name, target_lang, voice_choice, 
         with jobs_lock:
             jobs[job_id]["progress"] = 60
 
-        # 4. Neural-TTS with fallback
+        # 4. Neural-TTS with fallback + Volume Boost
+        temp_tts_mp3 = os.path.join(TEMP_FOLDER, f"{basename}_raw.mp3")
+        generate_tts_audio(translated, target_lang, voice_choice, temp_tts_mp3)
+
         tts_mp3 = os.path.join(OUTPUT_FOLDER, f"{basename}_translated.mp3")
-        generate_tts_audio(translated, target_lang, voice_choice, tts_mp3)
+        subprocess.run([
+            "ffmpeg", "-y", "-i", temp_tts_mp3,
+            "-af", "volume=2.2",
+            "-c:a", "libmp3lame", "-b:a", "192k",
+            tts_mp3
+        ], check=True)
 
         update_history(username, original_name, target_lang, f"{basename}_translated.mp3", translated, proj_type="audio", original_text_file=orig_text_file, translated_text_file=trans_text_file)
 
