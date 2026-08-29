@@ -322,23 +322,17 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
             if len(data) == 0: break
             if rec.AcceptWaveform(data):
                 res = json.loads(rec.Result())
-                if res.get("result"):
-                    utterances.append({
-                        "text": res["text"],
-                        "words": res["result"] # List of dicts {word, start, end}
-                    })
+                if res.get("text") and res["text"].strip():
+                    utterances.append(res["text"].strip())
         final_res = json.loads(rec.FinalResult())
-        if final_res.get("result"):
-            utterances.append({
-                "text": final_res["text"],
-                "words": final_res["result"]
-            })
+        if final_res.get("text") and final_res["text"].strip():
+            utterances.append(final_res["text"].strip())
         wf.close()
 
         if not utterances:
             raise RuntimeError("No speech detected in this video")
 
-        full_original_text = " ".join([u["text"] for u in utterances])
+        full_original_text = " ".join(utterances)
 
         with jobs_lock:
             jobs[job_id]["progress"] = 40
@@ -395,7 +389,7 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
 
         audio_filter_str = ",".join(audio_filters)
 
-        # 7. Merge Video + Boosted Audio (Natural video playback, loud & clear audio)
+        # 7. Merge Video + Boosted Audio (Full complete video and audio)
         final_video_name = f"{basename}_translated.mp4"
         final_video_path = os.path.join(OUTPUT_FOLDER, final_video_name)
         
@@ -405,7 +399,7 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
             "-af", audio_filter_str,
             "-c:a", "aac", "-b:a", "192k",
             "-map","0:v:0", "-map","1:a:0",
-            "-shortest", final_video_path
+            final_video_path
         ], check=True)
 
         update_history(username, original_name, target_lang, final_video_name, translated)
@@ -456,21 +450,17 @@ def process_audio(filepath, basename, original_name, target_lang, voice_choice, 
             if len(data) == 0: break
             if rec.AcceptWaveform(data):
                 res = json.loads(rec.Result())
-                if res.get("result"):
-                    utterances.append({
-                        "text": res["text"]
-                    })
+                if res.get("text") and res["text"].strip():
+                    utterances.append(res["text"].strip())
         final_res = json.loads(rec.FinalResult())
-        if final_res.get("result"):
-            utterances.append({
-                "text": final_res["text"]
-            })
+        if final_res.get("text") and final_res["text"].strip():
+            utterances.append(final_res["text"].strip())
         wf.close()
 
         if not utterances:
             raise RuntimeError("No speech detected in this audio")
 
-        full_original_text = " ".join([u["text"] for u in utterances])
+        full_original_text = " ".join(utterances)
         
         orig_text_file = f"{basename}_original.txt"
         with open(os.path.join(OUTPUT_FOLDER, orig_text_file), "w", encoding="utf-8") as f:
