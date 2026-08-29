@@ -232,6 +232,28 @@ def generate_tts_audio(text, target_lang, voice_choice, output_mp3_path):
         tts.save(output_mp3_path)
 
 # ------------------------------
+# Translation Helper (Clean & Resilient)
+# ------------------------------
+
+def safe_translate(text, target_lang):
+    if not text or not text.strip():
+        return ""
+    try:
+        translator = GoogleTranslator(source="auto", target=target_lang)
+        result = translator.translate(text.strip())
+        if result:
+            # Filter out error pages returned by Google web scraping
+            error_signatures = ["error 500", "server error", "that's an error", "500.that", "<html", "<!doctype", "please try again later"]
+            if any(sig in result.lower() for sig in error_signatures):
+                logging.warning("Google translate returned error message, falling back to clean text.")
+                return text
+            return result
+        return text
+    except Exception as e:
+        logging.warning(f"Translation exception ({e}), using original text.")
+        return text
+
+# ------------------------------
 # Video Processing
 # ------------------------------
 
@@ -287,16 +309,7 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
             jobs[job_id]["progress"] = 40
 
         # 3. Translation
-        translated_parts = []
-        translator = GoogleTranslator(source="auto", target=target_lang)
-
-        for utt in utterances:
-            translated_utt = translator.translate(utt["text"])
-            if not translated_utt: translated_utt = utt["text"]
-            utt["translated_text"] = translated_utt
-            translated_parts.append(translated_utt)
-
-        translated = " ".join(translated_parts)
+        translated = safe_translate(full_original_text, target_lang)
 
         with jobs_lock:
             jobs[job_id]["progress"] = 60
@@ -308,42 +321,24 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
         with jobs_lock:
             jobs[job_id]["progress"] = 75
 
-        # 5. Convert MP3 → WAV (Normal speed 1x)
+        # 5. Convert MP3 → WAV (High Quality)
         tts_wav = os.path.join(TEMP_FOLDER, f"{basename}_tts.wav")
         subprocess.run([
             "ffmpeg","-y","-i", tts_mp3,
-            "-ar","16000", "-ac","1", tts_wav
+            "-ar","44100", "-ac","2", tts_wav
         ], check=True)
 
         with jobs_lock:
             jobs[job_id]["progress"] = 85
 
-        # 6. Dynamic Duration Matching
-        # Get original video duration
-        meta_vid = subprocess.check_output([
-            "ffprobe", "-v", "error", "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1", filepath
-        ]).decode("utf-8").strip()
-        orig_dur = float(meta_vid)
-
-        # Get AI audio duration
-        meta_aud = subprocess.check_output([
-            "ffprobe", "-v", "error", "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1", tts_wav
-        ]).decode("utf-8").strip()
-        aud_dur = float(meta_aud)
-
-        # Scale Factor: How much to stretch/shrink the video to match the audio
-        ratio = aud_dur / orig_dur if orig_dur > 0 else 1.0
-
-        # 8. Merge Video + Audio (Sync matching with ultrafast encoding)
+        # 6. Merge Video + High Quality AAC Audio
         final_video_name = f"{basename}_translated.mp4"
         final_video_path = os.path.join(OUTPUT_FOLDER, final_video_name)
         
         subprocess.run([
             "ffmpeg","-y","-i", filepath, "-i", tts_wav,
-            "-filter:v", f"setpts={ratio}*PTS",
             "-c:v", "libx264", "-preset", "ultrafast",
+            "-c:a", "aac", "-b:a", "192k",
             "-map","0:v:0", "-map","1:a:0",
             "-shortest", final_video_path
         ], check=True)
@@ -420,15 +415,7 @@ def process_audio(filepath, basename, original_name, target_lang, voice_choice, 
             jobs[job_id]["progress"] = 40
 
         # 3. Translation
-        translated_parts = []
-        translator = GoogleTranslator(source="auto", target=target_lang)
-
-        for utt in utterances:
-            translated_utt = translator.translate(utt["text"])
-            if not translated_utt: translated_utt = utt["text"]
-            translated_parts.append(translated_utt)
-
-        translated = " ".join(translated_parts)
+        translated = safe_translate(full_original_text, target_lang)
         
         trans_text_file = f"{basename}_translated.txt"
         with open(os.path.join(OUTPUT_FOLDER, trans_text_file), "w", encoding="utf-8") as f:
