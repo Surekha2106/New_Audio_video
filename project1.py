@@ -343,12 +343,15 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
             raise RuntimeError("No speech detected in this video")
 
         full_original_text = " ".join(utterances)
+        logging.info(f"[{job_id}] Speech detected ({len(utterances)} parts): {full_original_text[:100]}...")
 
         with jobs_lock:
             jobs[job_id]["progress"] = 40
 
         # 3. Translation
+        logging.info(f"[{job_id}] Translating to '{target_lang}'...")
         translated = safe_translate(full_original_text, target_lang)
+        logging.info(f"[{job_id}] Translated result: {translated[:100]}...")
 
         with jobs_lock:
             jobs[job_id]["progress"] = 60
