@@ -40,14 +40,18 @@ BACKEND_URL = os.environ.get("BACKEND_URL", "")
 def inject_backend_url():
     return {"backend_url": os.environ.get("BACKEND_URL", "")}
 
-database_url = os.environ.get("DATABASE_URL")
+database_url = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
 
 if not database_url:
     if IS_VERCEL:
-        raise RuntimeError("DATABASE_URL is not configured on Vercel")
+        raise RuntimeError("DATABASE_URL or POSTGRES_URL is not configured on Vercel")
     else:
         # Fallback to local SQLite for local development
         database_url = 'sqlite:///' + os.path.join(WRITE_DIR, 'app.db')
+
+# SQLAlchemy 2.x requires postgresql:// instead of postgres://
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
