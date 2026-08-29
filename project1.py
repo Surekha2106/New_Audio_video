@@ -183,6 +183,55 @@ def update_history(username, original_file, target_lang, output_file, translated
         db.session.commit()
 
 # ------------------------------
+# TTS Helper (Edge-TTS with gTTS Fallback)
+# ------------------------------
+
+def generate_tts_audio(text, target_lang, voice_choice, output_mp3_path):
+    import asyncio
+    import edge_tts
+
+    voice_map = {
+        "en": {"male": "en-US-GuyNeural", "female": "en-US-AriaNeural"},
+        "hi": {"male": "hi-IN-MadhurNeural", "female": "hi-IN-SwaraNeural"},
+        "ta": {"male": "ta-IN-ValluvarNeural", "female": "ta-IN-PallaviNeural"},
+        "te": {"male": "te-IN-MohanNeural", "female": "te-IN-ShrutiNeural"},
+        "ml": {"male": "ml-IN-MidhunNeural", "female": "ml-IN-SobhanaNeural"},
+        "kn": {"male": "kn-IN-GaganNeural", "female": "kn-IN-SapnaNeural"},
+        "zh-cn": {"male": "zh-CN-YunxiNeural", "female": "zh-CN-XiaoxiaoNeural"},
+        "es": {"male": "es-ES-AlvaroNeural", "female": "es-ES-ElviraNeural"},
+        "fr": {"male": "fr-FR-HenriNeural", "female": "fr-FR-DeniseNeural"},
+        "de": {"male": "de-DE-ConradNeural", "female": "de-DE-KatjaNeural"},
+    }
+
+    v_data = voice_map.get(target_lang, voice_map["en"])
+    selected_voice = v_data.get(voice_choice, v_data["male"])
+    if voice_choice == "auto" or voice_choice not in v_data:
+        selected_voice = v_data["male"]
+
+    # 1. Attempt high quality Edge-TTS
+    try:
+        async def generate_voice():
+            communicate = edge_tts.Communicate(text, selected_voice)
+            await communicate.save(output_mp3_path)
+        asyncio.run(generate_voice())
+        if os.path.exists(output_mp3_path) and os.path.getsize(output_mp3_path) > 0:
+            logging.info("Edge-TTS generated audio successfully")
+            return
+    except Exception as e:
+        logging.warning(f"Edge-TTS failed with {e}. Falling back to gTTS...")
+
+    # 2. Resilient fallback to Google TTS (gTTS)
+    try:
+        lang_code = target_lang.split("-")[0].lower()
+        tts = gTTS(text=text, lang=lang_code)
+        tts.save(output_mp3_path)
+        logging.info("gTTS generated audio fallback successfully")
+    except Exception as e2:
+        logging.warning(f"gTTS with lang {lang_code} failed ({e2}), trying English gTTS...")
+        tts = gTTS(text=text, lang="en")
+        tts.save(output_mp3_path)
+
+# ------------------------------
 # Video Processing
 # ------------------------------
 
@@ -252,37 +301,9 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
         with jobs_lock:
             jobs[job_id]["progress"] = 60
 
-        # 4. Neural-TTS using edge-tts (Human-like)
-        import asyncio
-        import edge_tts
-        
+        # 4. Neural-TTS with fallback
         tts_mp3 = os.path.join(TEMP_FOLDER, f"{basename}_tts.mp3")
-        
-        # Voice Mapping (Language -> Male/Female neural voice codes)
-        voice_map = {
-            "en": {"male": "en-US-GuyNeural", "female": "en-US-AriaNeural"},
-            "hi": {"male": "hi-IN-MadhurNeural", "female": "hi-IN-SwaraNeural"},
-            "ta": {"male": "ta-IN-ValluvarNeural", "female": "ta-IN-PallaviNeural"},
-            "te": {"male": "te-IN-MohanNeural", "female": "te-IN-ShrutiNeural"},
-            "ml": {"male": "ml-IN-MidhunNeural", "female": "ml-IN-SobhanaNeural"},
-            "kn": {"male": "kn-IN-GaganNeural", "female": "kn-IN-SapnaNeural"},
-            "zh-cn": {"male": "zh-CN-YunxiNeural", "female": "zh-CN-XiaoxiaoNeural"},
-            "es": {"male": "es-ES-AlvaroNeural", "female": "es-ES-ElviraNeural"},
-            "fr": {"male": "fr-FR-HenriNeural", "female": "fr-FR-DeniseNeural"},
-            "de": {"male": "de-DE-ConradNeural", "female": "de-DE-KatjaNeural"},
-        }
-        
-        # Default fallback logic
-        v_data = voice_map.get(target_lang, voice_map["en"])
-        selected_voice = v_data.get(voice_choice, v_data["male"])
-        if voice_choice == "auto" or voice_choice not in v_data:
-            selected_voice = v_data["male"] # Default to male for auto if language matches
-            
-        async def generate_voice():
-            communicate = edge_tts.Communicate(translated, selected_voice)
-            await communicate.save(tts_mp3)
-            
-        asyncio.run(generate_voice())
+        generate_tts_audio(translated, target_lang, voice_choice, tts_mp3)
 
         # 5. Convert MP3 → WAV (Normal speed 1x)
         tts_wav = os.path.join(TEMP_FOLDER, f"{basename}_tts.wav")
@@ -410,35 +431,9 @@ def process_audio(filepath, basename, original_name, target_lang, voice_choice, 
         with jobs_lock:
             jobs[job_id]["progress"] = 60
 
-        # 4. Neural-TTS using edge-tts
-        import asyncio
-        import edge_tts
-        
+        # 4. Neural-TTS with fallback
         tts_mp3 = os.path.join(OUTPUT_FOLDER, f"{basename}_translated.mp3")
-        
-        voice_map = {
-            "en": {"male": "en-US-GuyNeural", "female": "en-US-AriaNeural"},
-            "hi": {"male": "hi-IN-MadhurNeural", "female": "hi-IN-SwaraNeural"},
-            "ta": {"male": "ta-IN-ValluvarNeural", "female": "ta-IN-PallaviNeural"},
-            "te": {"male": "te-IN-MohanNeural", "female": "te-IN-ShrutiNeural"},
-            "ml": {"male": "ml-IN-MidhunNeural", "female": "ml-IN-SobhanaNeural"},
-            "kn": {"male": "kn-IN-GaganNeural", "female": "kn-IN-SapnaNeural"},
-            "zh-cn": {"male": "zh-CN-YunxiNeural", "female": "zh-CN-XiaoxiaoNeural"},
-            "es": {"male": "es-ES-AlvaroNeural", "female": "es-ES-ElviraNeural"},
-            "fr": {"male": "fr-FR-HenriNeural", "female": "fr-FR-DeniseNeural"},
-            "de": {"male": "de-DE-ConradNeural", "female": "de-DE-KatjaNeural"},
-        }
-        
-        v_data = voice_map.get(target_lang, voice_map["en"])
-        selected_voice = v_data.get(voice_choice, v_data["male"])
-        if voice_choice == "auto" or voice_choice not in v_data:
-            selected_voice = v_data["male"]
-            
-        async def generate_voice():
-            communicate = edge_tts.Communicate(translated, selected_voice)
-            await communicate.save(tts_mp3)
-            
-        asyncio.run(generate_voice())
+        generate_tts_audio(translated, target_lang, voice_choice, tts_mp3)
 
         update_history(username, original_name, target_lang, f"{basename}_translated.mp3", translated, proj_type="audio", original_text_file=orig_text_file, translated_text_file=trans_text_file)
 
