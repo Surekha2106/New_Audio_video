@@ -305,13 +305,18 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
         tts_mp3 = os.path.join(TEMP_FOLDER, f"{basename}_tts.mp3")
         generate_tts_audio(translated, target_lang, voice_choice, tts_mp3)
 
+        with jobs_lock:
+            jobs[job_id]["progress"] = 75
+
         # 5. Convert MP3 → WAV (Normal speed 1x)
         tts_wav = os.path.join(TEMP_FOLDER, f"{basename}_tts.wav")
-        # No speed-up or filters needed for normal 1x playback.
         subprocess.run([
             "ffmpeg","-y","-i", tts_mp3,
             "-ar","16000", "-ac","1", tts_wav
         ], check=True)
+
+        with jobs_lock:
+            jobs[job_id]["progress"] = 85
 
         # 6. Dynamic Duration Matching
         # Get original video duration
@@ -321,7 +326,7 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
         ]).decode("utf-8").strip()
         orig_dur = float(meta_vid)
 
-        # Get AI audio duration (which is now 1.5x faster)
+        # Get AI audio duration
         meta_aud = subprocess.check_output([
             "ffprobe", "-v", "error", "-show_entries", "format=duration",
             "-of", "default=noprint_wrappers=1:nokey=1", tts_wav
@@ -331,15 +336,15 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
         # Scale Factor: How much to stretch/shrink the video to match the audio
         ratio = aud_dur / orig_dur if orig_dur > 0 else 1.0
 
-        # Subtitle generation removed.
-
-        # 8. Merge Video + Audio (Sync matching)
+        # 8. Merge Video + Audio (Sync matching with ultrafast encoding)
         final_video_name = f"{basename}_translated.mp4"
         final_video_path = os.path.join(OUTPUT_FOLDER, final_video_name)
         
         subprocess.run([
             "ffmpeg","-y","-i", filepath, "-i", tts_wav,
-            "-filter:v", f"setpts={ratio}*PTS", "-map","0:v:0", "-map","1:a:0",
+            "-filter:v", f"setpts={ratio}*PTS",
+            "-c:v", "libx264", "-preset", "ultrafast",
+            "-map","0:v:0", "-map","1:a:0",
             "-shortest", final_video_path
         ], check=True)
 
@@ -349,6 +354,7 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
             jobs[job_id]["progress"] = 100
             jobs[job_id]["output"] = final_video_name
             jobs[job_id]["translated_text"] = translated
+
 
     except Exception as e:
         logging.exception(f"Processing failed for job {job_id}")
