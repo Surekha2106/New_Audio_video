@@ -81,16 +81,46 @@ with app.app_context():
     db.create_all()
 
 # ------------------------------
-# Load Vosk Model
+# Load Vosk Model (with Auto-Download)
 # ------------------------------
 
 vosk_model = None
-if os.path.exists(VOSK_MODEL_FOLDER):
-    try:
-        vosk_model = Model(VOSK_MODEL_FOLDER)
-        logging.info("Vosk model successfully loaded")
-    except:
-        logging.exception("Failed loading Vosk model from: " + VOSK_MODEL_FOLDER)
+
+def get_vosk_model():
+    global vosk_model
+    if vosk_model is not None:
+        return vosk_model
+
+    # Check if local model folder exists and is populated
+    if not os.path.exists(VOSK_MODEL_FOLDER) or not os.path.exists(os.path.join(VOSK_MODEL_FOLDER, "am")):
+        logging.info("Vosk model not found locally. Auto-downloading small English model...")
+        import urllib.request, zipfile
+        os.makedirs(TEMP_FOLDER, exist_ok=True)
+        zip_path = os.path.join(TEMP_FOLDER, "vosk_model.zip")
+        url = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
+        try:
+            urllib.request.urlretrieve(url, zip_path)
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(TEMP_FOLDER)
+            extracted = os.path.join(TEMP_FOLDER, "vosk-model-small-en-us-0.15")
+            if os.path.exists(extracted):
+                if os.path.exists(VOSK_MODEL_FOLDER):
+                    shutil.rmtree(VOSK_MODEL_FOLDER)
+                shutil.move(extracted, VOSK_MODEL_FOLDER)
+            if os.path.exists(zip_path):
+                os.remove(zip_path)
+            logging.info("Vosk model downloaded and unpacked successfully")
+        except Exception as e:
+            logging.error(f"Failed to auto-download Vosk model: {e}")
+
+    if os.path.exists(VOSK_MODEL_FOLDER):
+        try:
+            vosk_model = Model(VOSK_MODEL_FOLDER)
+            logging.info("Vosk model successfully loaded")
+        except Exception as e:
+            logging.exception(f"Failed loading Vosk model from: {VOSK_MODEL_FOLDER}")
+
+    return vosk_model
 
 # ------------------------------
 # Global State for Jobs
@@ -147,11 +177,12 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
             jobs[job_id]["progress"] = 20
 
         # 2. Speech Recognition
-        if vosk_model is None:
-            raise RuntimeError("Vosk model missing on server")
+        v_model = get_vosk_model()
+        if v_model is None:
+            raise RuntimeError("Vosk model missing on server and could not be downloaded")
 
         wf = wave.open(audio_path, "rb")
-        rec = KaldiRecognizer(vosk_model, wf.getframerate())
+        rec = KaldiRecognizer(v_model, wf.getframerate())
         rec.SetWords(True)  # Enable timestamps
 
         utterances = []
@@ -299,11 +330,12 @@ def process_audio(filepath, basename, original_name, target_lang, voice_choice, 
             jobs[job_id]["progress"] = 20
 
         # 2. Speech Recognition
-        if vosk_model is None:
-            raise RuntimeError("Vosk model missing on server")
+        v_model = get_vosk_model()
+        if v_model is None:
+            raise RuntimeError("Vosk model missing on server and could not be downloaded")
 
         wf = wave.open(audio_path, "rb")
-        rec = KaldiRecognizer(vosk_model, wf.getframerate())
+        rec = KaldiRecognizer(v_model, wf.getframerate())
         rec.SetWords(True)
 
         utterances = []

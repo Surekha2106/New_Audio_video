@@ -3,14 +3,22 @@ FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
 
-# Install system dependencies (FFmpeg is critical for this project)
+# Install FFmpeg, wget, unzip, and required system packages
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libsndfile1 \
+    wget \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory in the container
 WORKDIR /app
+
+# Download and setup Vosk English speech recognition model
+RUN wget -q https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip && \
+    unzip -q vosk-model-small-en-us-0.15.zip && \
+    mv vosk-model-small-en-us-0.15 VoskModel && \
+    rm vosk-model-small-en-us-0.15.zip
 
 # Copy the requirements file into the container
 COPY requirements.txt .
