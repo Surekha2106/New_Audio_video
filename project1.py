@@ -235,7 +235,7 @@ def generate_tts_audio(text, target_lang, voice_choice, output_mp3_path):
 # Translation Helper (Direct & Resilient)
 # ------------------------------
 
-def safe_translate(text, target_lang):
+def safe_translate_single(text, target_lang):
     if not text or not text.strip():
         return ""
     
@@ -251,7 +251,26 @@ def safe_translate(text, target_lang):
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
 
-    # 1. Primary Engine: High-accuracy Google Translate API (dict-chrome-ex)
+    # 1. Primary Engine: Google Translate GTX (full text / phrase translation)
+    try:
+        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={lang}&dt=t&q={urllib.parse.quote(clean_text)}"
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                "Accept": "*/*"
+            }
+        )
+        res_raw = urllib.request.urlopen(req, context=ctx, timeout=8).read().decode("utf-8")
+        res_json = json.loads(res_raw)
+        result = "".join([part[0] for part in res_json[0] if part and len(part) > 0 and part[0]])
+        if result and len(result.strip()) > 0:
+            logging.info(f"Google GTX translation success into [{lang}]: {result[:80]}")
+            return result.strip()
+    except Exception as e:
+        logging.warning(f"Google GTX translation failed: {e}")
+
+    # 2. Secondary Engine: Google Translate dict-chrome-ex
     try:
         url = f"https://translate.googleapis.com/translate_a/single?client=dict-chrome-ex&sl=auto&tl={lang}&dt=t&q={urllib.parse.quote(clean_text)}"
         req = urllib.request.Request(
@@ -261,16 +280,25 @@ def safe_translate(text, target_lang):
                 "Accept": "*/*"
             }
         )
-        res_raw = urllib.request.urlopen(req, context=ctx, timeout=10).read().decode("utf-8")
+        res_raw = urllib.request.urlopen(req, context=ctx, timeout=8).read().decode("utf-8")
         res_json = json.loads(res_raw)
         result = "".join([part[0] for part in res_json[0] if part and len(part) > 0 and part[0]])
         if result and len(result.strip()) > 0:
-            logging.info(f"Google API translation success into [{lang}]: {result[:80]}")
+            logging.info(f"Google dict-chrome-ex translation success into [{lang}]: {result[:80]}")
             return result.strip()
     except Exception as e:
-        logging.warning(f"Primary Google API translation failed: {e}")
+        logging.warning(f"Google dict-chrome-ex translation failed: {e}")
 
-    # 2. Fallback Engine: MyMemory API in word chunks
+    # 3. Tertiary Engine: deep_translator GoogleTranslator
+    try:
+        t = GoogleTranslator(source="auto", target=lang).translate(clean_text)
+        if t and len(t.strip()) > 0 and "Error 500" not in t:
+            logging.info(f"deep_translator success into [{lang}]: {t[:80]}")
+            return t.strip()
+    except Exception as e:
+        logging.warning(f"deep_translator failed: {e}")
+
+    # 4. Fallback Engine: MyMemory API in word chunks
     try:
         words = clean_text.split()
         chunk_size = 15
@@ -293,6 +321,24 @@ def safe_translate(text, target_lang):
         logging.warning(f"MyMemory fallback failed: {e2}")
 
     return clean_text
+
+def safe_translate(text, target_lang):
+    if not text or not text.strip():
+        return ""
+    
+    clean_text = text.strip()
+    import re
+    # Split by newlines or sentence endings if multi-sentence to avoid single-phrase truncation
+    parts = [p.strip() for p in re.split(r'[\n\r]+|[.!?]+\s+', clean_text) if p.strip()]
+    if len(parts) <= 1:
+        return safe_translate_single(clean_text, target_lang)
+
+    translated_parts = []
+    for part in parts:
+        trans = safe_translate_single(part, target_lang)
+        if trans:
+            translated_parts.append(trans)
+    return " ".join(translated_parts) if translated_parts else safe_translate_single(clean_text, target_lang)
 
 
 
@@ -342,21 +388,26 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
         if not utterances:
             raise RuntimeError("No speech detected in this video")
 
-        full_original_text = " ".join(utterances)
+        full_original_text = ". ".join([u.strip().capitalize() for u in utterances if u.strip()])
         logging.info(f"[{job_id}] Speech detected ({len(utterances)} parts): {full_original_text[:100]}...")
 
         with jobs_lock:
             jobs[job_id]["progress"] = 40
 
-        # 3. Translation
-        logging.info(f"[{job_id}] Translating to '{target_lang}'...")
-        translated = safe_translate(full_original_text, target_lang)
-        logging.info(f"[{job_id}] Translated result: {translated[:100]}...")
+        # 3. Translation - Translate each utterance across the whole duration to ensure nothing is skipped
+        logging.info(f"[{job_id}] Translating {len(utterances)} utterance(s) to '{target_lang}'...")
+        translated_parts = []
+        for u in utterances:
+            t = safe_translate(u, target_lang)
+            if t:
+                translated_parts.append(t)
+        translated = " ".join(translated_parts) if translated_parts else safe_translate(full_original_text, target_lang)
+        logging.info(f"[{job_id}] Translated full result: {translated[:100]}...")
 
         with jobs_lock:
             jobs[job_id]["progress"] = 60
 
-        # 4. Neural-TTS with fallback
+        # 4. Neural-TTS with fallback for the complete translated text
         tts_mp3 = os.path.join(TEMP_FOLDER, f"{basename}_tts.mp3")
         generate_tts_audio(translated, target_lang, voice_choice, tts_mp3)
 
@@ -473,7 +524,7 @@ def process_audio(filepath, basename, original_name, target_lang, voice_choice, 
         if not utterances:
             raise RuntimeError("No speech detected in this audio")
 
-        full_original_text = " ".join(utterances)
+        full_original_text = ". ".join([u.strip().capitalize() for u in utterances if u.strip()])
         
         orig_text_file = f"{basename}_original.txt"
         with open(os.path.join(OUTPUT_FOLDER, orig_text_file), "w", encoding="utf-8") as f:
@@ -482,8 +533,13 @@ def process_audio(filepath, basename, original_name, target_lang, voice_choice, 
         with jobs_lock:
             jobs[job_id]["progress"] = 40
 
-        # 3. Translation
-        translated = safe_translate(full_original_text, target_lang)
+        # 3. Translation - Translate each utterance across the whole duration
+        translated_parts = []
+        for u in utterances:
+            t = safe_translate(u, target_lang)
+            if t:
+                translated_parts.append(t)
+        translated = " ".join(translated_parts) if translated_parts else safe_translate(full_original_text, target_lang)
         
         trans_text_file = f"{basename}_translated.txt"
         with open(os.path.join(OUTPUT_FOLDER, trans_text_file), "w", encoding="utf-8") as f:
@@ -492,7 +548,7 @@ def process_audio(filepath, basename, original_name, target_lang, voice_choice, 
         with jobs_lock:
             jobs[job_id]["progress"] = 60
 
-        # 4. Neural-TTS with fallback + Volume Boost
+        # 4. Neural-TTS with fallback + Volume Boost for full translated audio
         temp_tts_mp3 = os.path.join(TEMP_FOLDER, f"{basename}_raw.mp3")
         generate_tts_audio(translated, target_lang, voice_choice, temp_tts_mp3)
 
