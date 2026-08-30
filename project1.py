@@ -353,7 +353,17 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
         with jobs_lock:
             jobs[job_id] = {"progress": 0, "output": None, "error": None}
 
-        # 1. Extract audio
+        # 1. Get video duration
+        try:
+            meta_vid = subprocess.check_output([
+                "ffprobe", "-v", "error", "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1", filepath
+            ]).decode("utf-8").strip()
+            orig_dur = float(meta_vid)
+        except Exception:
+            orig_dur = 15.0
+
+        # 2. Extract audio
         audio_path = os.path.join(TEMP_FOLDER, f"{basename}_audio.wav")
         subprocess.run([
             "ffmpeg","-y","-i", filepath, "-vn", "-acodec","pcm_s16le",
@@ -363,7 +373,7 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
         with jobs_lock:
             jobs[job_id]["progress"] = 20
 
-        # 2. Speech Recognition
+        # 3. Speech Recognition with Timestamps
         v_model = get_vosk_model()
         if v_model is None:
             raise RuntimeError("Vosk model missing on server and could not be downloaded")
@@ -372,95 +382,116 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
         rec = KaldiRecognizer(v_model, wf.getframerate())
         rec.SetWords(True)  # Enable timestamps
 
-        utterances = []
+        segments = []
         while True:
             data = wf.readframes(4000)
             if len(data) == 0: break
             if rec.AcceptWaveform(data):
                 res = json.loads(rec.Result())
-                if res.get("text") and res["text"].strip():
-                    utterances.append(res["text"].strip())
+                if res.get("text") and res["text"].strip() and res.get("result"):
+                    segments.append({
+                        "text": res["text"].strip(),
+                        "start": res["result"][0]["start"],
+                        "end": res["result"][-1]["end"]
+                    })
         final_res = json.loads(rec.FinalResult())
-        if final_res.get("text") and final_res["text"].strip():
-            utterances.append(final_res["text"].strip())
+        if final_res.get("text") and final_res["text"].strip() and final_res.get("result"):
+            segments.append({
+                "text": final_res["text"].strip(),
+                "start": final_res["result"][0]["start"],
+                "end": final_res["result"][-1]["end"]
+            })
         wf.close()
 
-        if not utterances:
+        if not segments:
             raise RuntimeError("No speech detected in this video")
 
-        full_original_text = ". ".join([u.strip().capitalize() for u in utterances if u.strip()])
-        logging.info(f"[{job_id}] Speech detected ({len(utterances)} parts): {full_original_text[:100]}...")
+        full_original_text = ". ".join([s["text"].capitalize() for s in segments if s["text"]])
+        logging.info(f"[{job_id}] Speech detected ({len(segments)} segments): {full_original_text[:100]}...")
 
         with jobs_lock:
             jobs[job_id]["progress"] = 40
 
-        # 3. Translation - Translate each utterance across the whole duration to ensure nothing is skipped
-        logging.info(f"[{job_id}] Translating {len(utterances)} utterance(s) to '{target_lang}'...")
-        translated_parts = []
-        for u in utterances:
-            t = safe_translate(u, target_lang)
-            if t:
-                translated_parts.append(t)
-        translated = " ".join(translated_parts) if translated_parts else safe_translate(full_original_text, target_lang)
-        logging.info(f"[{job_id}] Translated full result: {translated[:100]}...")
+        # 4. Translate & Generate Timestamp-Aligned Audio Segments
+        logging.info(f"[{job_id}] Translating {len(segments)} segment(s) to '{target_lang}' with timeline alignment...")
+        
+        translated_texts = []
+        seg_wav_paths = []
+
+        for i, seg in enumerate(segments):
+            t = safe_translate(seg["text"], target_lang)
+            translated_texts.append(t)
+            
+            seg_mp3 = os.path.join(TEMP_FOLDER, f"{basename}_seg_{i}.mp3")
+            seg_wav = os.path.join(TEMP_FOLDER, f"{basename}_seg_{i}.wav")
+            generate_tts_audio(t, target_lang, voice_choice, seg_mp3)
+
+            # Check individual segment duration
+            try:
+                seg_dur_str = subprocess.check_output([
+                    "ffprobe", "-v", "error", "-show_entries", "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1", seg_mp3
+                ]).decode("utf-8").strip()
+                seg_dur = float(seg_dur_str)
+            except Exception:
+                seg_dur = 2.0
+
+            # Available timeline window before next dialogue or video end
+            if i < len(segments) - 1:
+                window = max(0.5, segments[i + 1]["start"] - seg["start"] - 0.1)
+            else:
+                window = max(0.5, orig_dur - seg["start"])
+
+            # Pace speech: if TTS is longer than the window, adjust speed
+            speed = 1.0
+            if seg_dur > window:
+                speed = min(1.35, seg_dur / window)
+
+            af = f"atempo={speed:.2f}" if speed > 1.05 else "anull"
+            subprocess.run([
+                "ffmpeg", "-y", "-i", seg_mp3,
+                "-af", af, "-ar", "44100", "-ac", "2", seg_wav
+            ], check=True)
+            seg_wav_paths.append(seg_wav)
+
+        translated = " ".join(translated_texts)
 
         with jobs_lock:
-            jobs[job_id]["progress"] = 60
+            jobs[job_id]["progress"] = 70
 
-        # 4. Neural-TTS with fallback for the complete translated text
-        tts_mp3 = os.path.join(TEMP_FOLDER, f"{basename}_tts.mp3")
-        generate_tts_audio(translated, target_lang, voice_choice, tts_mp3)
+        # 5. Mix all timeline-delayed audio segments into a single synchronized track
+        tts_wav = os.path.join(TEMP_FOLDER, f"{basename}_aligned_tts.wav")
+        if len(segments) == 1:
+            delay_ms = int(segments[0]["start"] * 1000)
+            subprocess.run([
+                "ffmpeg", "-y", "-i", seg_wav_paths[0],
+                "-af", f"adelay={delay_ms}|{delay_ms},volume=2.2",
+                "-ar", "44100", "-ac", "2", "-t", str(orig_dur),
+                tts_wav
+            ], check=True)
+        else:
+            inputs = []
+            filter_parts = []
+            for i, seg in enumerate(segments):
+                inputs.extend(["-i", seg_wav_paths[i]])
+                delay_ms = int(seg["start"] * 1000)
+                filter_parts.append(f"[{i}:a]adelay={delay_ms}|{delay_ms}[a{i}]")
 
-        with jobs_lock:
-            jobs[job_id]["progress"] = 75
-
-        # 5. Convert MP3 → WAV (High Quality)
-        tts_wav = os.path.join(TEMP_FOLDER, f"{basename}_tts.wav")
-        subprocess.run([
-            "ffmpeg","-y","-i", tts_mp3,
-            "-ar","44100", "-ac","2", tts_wav
-        ], check=True)
+            amix_inputs = "".join([f"[a{i}]" for i in range(len(segments))])
+            filter_str = ";".join(filter_parts) + f";{amix_inputs}amix=inputs={len(segments)}:dropout_transition=0:normalize=0,volume=2.2[aout]"
+            cmd = ["ffmpeg", "-y"] + inputs + ["-filter_complex", filter_str, "-map", "[aout]", "-ar", "44100", "-ac", "2", "-t", str(orig_dur), tts_wav]
+            subprocess.run(cmd, check=True)
 
         with jobs_lock:
             jobs[job_id]["progress"] = 85
 
-        # 6. Audio-Video Duration Sync & Volume Boost
-        try:
-            meta_vid = subprocess.check_output([
-                "ffprobe", "-v", "error", "-show_entries", "format=duration",
-                "-of", "default=noprint_wrappers=1:nokey=1", filepath
-            ]).decode("utf-8").strip()
-            orig_dur = float(meta_vid)
-        except:
-            orig_dur = 1.0
-
-        try:
-            meta_aud = subprocess.check_output([
-                "ffprobe", "-v", "error", "-show_entries", "format=duration",
-                "-of", "default=noprint_wrappers=1:nokey=1", tts_wav
-            ]).decode("utf-8").strip()
-            aud_dur = float(meta_aud)
-        except:
-            aud_dur = 1.0
-
-        # Build audio filter: volume boost (volume=2.2) + duration matching (atempo) if speech is longer than video
-        audio_filters = ["volume=2.2"]
-        if orig_dur > 1.0 and aud_dur > orig_dur:
-            speed_ratio = aud_dur / orig_dur
-            speed_ratio = max(1.0, min(1.30, speed_ratio))
-            if speed_ratio > 1.05:
-                audio_filters.append(f"atempo={speed_ratio:.2f}")
-
-        audio_filter_str = ",".join(audio_filters)
-
-        # 7. Merge Video + Boosted Audio (Full complete video and audio)
+        # 6. Merge Video + Aligned Dubbed Audio across full video length
         final_video_name = f"{basename}_translated.mp4"
         final_video_path = os.path.join(OUTPUT_FOLDER, final_video_name)
         
         subprocess.run([
             "ffmpeg","-y","-i", filepath, "-i", tts_wav,
             "-c:v", "libx264", "-preset", "ultrafast",
-            "-af", audio_filter_str,
             "-c:a", "aac", "-b:a", "192k",
             "-map","0:v:0", "-map","1:a:0",
             final_video_path
@@ -472,7 +503,6 @@ def process_video(filepath, basename, original_name, target_lang, voice_choice, 
             jobs[job_id]["progress"] = 100
             jobs[job_id]["output"] = final_video_name
             jobs[job_id]["translated_text"] = translated
-
 
     except Exception as e:
         logging.exception(f"Processing failed for job {job_id}")
