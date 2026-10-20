@@ -111,8 +111,8 @@ pip install -r requirements.txt
 python project1.py
 ```
 
-> 🎉 **Success!** The application will be running locally at:
-> **[http://localhost:5000](http://localhost:5000)**
+> 🎉 **Success!** The application will be running at:
+> **https://new-audio-video-4lcj.vercel.app/**
 
 ---
 
